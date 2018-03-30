@@ -22,29 +22,47 @@ def plotData_profiles(df):
 
 #######################################################
 ### Function to Plot theft Points over Cleaned Data
-def plot_theftpts(cleanedDf , theftpts = []):
+def plot_theftpts(cleanedDf , theftpts = [], xlim=[], ylim = []):
 
-    plt.rcParams['figure.figsize'] = [16, 4]
+    plt.rcParams['figure.figsize'] = [20, 4]
     # plt.subplot(6,1,1)
     plt.plot(cleanedDf.index, cleanedDf.fuelVoltage, 'g.', markersize=2, linewidth=1);
     plt.plot(cleanedDf.index, cleanedDf.distance, 'b-', markersize=2, linewidth=1);
-    # plt.xlim(8445,8470)
+    if len(xlim) !=0:
+        plt.xlim(xlim)
+    if len(ylim)!=0:
+        plt.ylim(ylim)
     for pt in theftpts:
         plt.axvline(pt)
     plt.show()
 
-def plot_Results(df, df_clean, result_df):
-    plt.subplot(2, 2, 1)
+def plot_Results(df, df_clean, result_df, xlim = [], ylim = []):
+
+    plt.rcParams['figure.figsize']=[20,4]
+    plt.subplot(3, 1, 1)
     plt.plot(df.datetime, df.fuelVoltage, 'g.', markersize=1, linewidth=1);
     plt.plot(df.datetime, df.distance, 'b-', markersize=1, linewidth=1);
 
-    plt.subplot(2, 2, 2)
+    plt.subplot(3, 1, 2)
     plt.plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=1, linewidth=1);
     plt.plot(df_clean.index, df_clean.distance, 'b-', markersize=1, linewidth=1);
 
-    plt.subplot(2, 2, 3)
-    plt.plot(result_df.theft_time, result_df.fuel_jump, 'g-', markersize=2, linewidth=1);
-    
+    if len(xlim) !=0:
+        plt.xlim(xlim)
+    if len(ylim)!=0:
+        plt.ylim(ylim)
+
+    for pt in result_df.theft_index:
+        plt.axvline(pt)
+
+    plt.subplot(3, 1, 3)
+    plt.plot(result_df.theft_index, result_df.fuel_jump, 'g.', markersize=3, linewidth=1);
+
+    if len(xlim) !=0:
+        plt.xlim(xlim)
+    if len(ylim)!=0:
+        plt.ylim(ylim)
+
     #plt.plot(df_clean.index, df_clean.distance, 'b-', markersize=1, linewidth=1);
 
     plt.show()
@@ -54,20 +72,33 @@ def plot_Results(df, df_clean, result_df):
 #### Main Code Starts
 
 folderpath = r"G:\Analytics\FuelAnalysis\test2"
+savePath = r"G:\Analytics\FuelAnalysis\results"
 filepath = r""
-df_list = dr.read__MultipleCSVs(folder_path= folderpath)
+df_list, filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=1)
+ctr = 0
+for df in df_list:
+    #df_list[0].info()
+    Dmax = df.distance.max()
+    df = dr.perform_PreFormating(df)
+    print ("Dataset_"+str(ctr+1) +" Preformatting Done")
 
-df_list[0].info()
-Dmax = df_list[0].distance.max()
-df = dr.perform_PreFormating(df_list[0])
-df = dr.perform_postFormating(df)
-dff = dc.Clean_NoiseData(df, level= 6)
-theft_pts = dc.theft_point(dff, level= 0.02)
+    dff = dr.perform_postFormating(df)
+    print("Dataset_" + str(ctr + 1) + " Postformatting Done")
 
-plotData_profiles(df)
+    df_clean = dc.Clean_NoiseData(dff, level= 6)
+    print("Dataset_" + str(ctr + 1) + " Data Cleaning Done")
 
-#plot_theftpts(dff,theft_pts)
-result_df = dc.generate_PredictTable(dff,theft_pts,Dmax)
-plot_Results(df,dff,result_df)
+    theft_pts = dc.theft_point(df_clean, level= 0.01)
+    print("Dataset_" + str(ctr + 1) + " Theft points Indentified")
 
-print(result_df)
+    #plotData_profiles(df)
+    xlim = [13200,14800]
+    plot_theftpts(df_clean,theft_pts, xlim = xlim)
+    result_df = dc.generate_PredictTable(df_clean,theft_pts,Dmax)
+
+    build_savePath = savePath + r"\result_dataset_" + filesname[ctr].replace(folderpath,"").replace('\\', "")
+    result_df.to_csv(build_savePath)
+
+    plot_Results(dff,df_clean,result_df, xlim = xlim)
+    ctr+=1
+    print(result_df)

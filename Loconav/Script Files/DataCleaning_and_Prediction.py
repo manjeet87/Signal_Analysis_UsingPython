@@ -105,16 +105,16 @@ def Clean_NoiseData(dff, level):
                    (dff.dd0000 <= 0.1) & (dff.dd6 <= 0.1) & (dff.dd00000 <= 0.12) & (dff.dd7 <= 0.12)]
         dff1 = dff1.reset_index(drop=True)  ## Reseting index
 
-    plt.rcParams['figure.figsize'] = [16, 4]
-    plt.plot(p, 'b.')
-    plt.title('Histogram - Consecutive Fuel Difference ', fontsize=15)
-    plt.ylim(0, 0.05)
-
-    #     plt.ylim(0.02,1)
-    #     plt.savefig("test.png")
-    plt.rcParams['figure.figsize'] = [16, 4]
-    plt.plot(dff.index[:], dff.fuelVoltage[:], 'g.', markersize=2, linewidth=1);
-    plt.ylim(0, 1.1)
+    # plt.rcParams['figure.figsize'] = [16, 4]
+    # plt.plot(p, 'b.')
+    # plt.title('Histogram - Consecutive Fuel Difference ', fontsize=15)
+    # plt.ylim(0, 0.05)
+    #
+    # #     plt.ylim(0.02,1)
+    # #     plt.savefig("test.png")
+    # plt.rcParams['figure.figsize'] = [16, 4]
+    # plt.plot(dff.index[:], dff.fuelVoltage[:], 'g.', markersize=2, linewidth=1);
+    # plt.ylim(0, 1.1)
 
     return dff1
 
@@ -209,8 +209,11 @@ def generate_PredictTable(df_cleaned, theft_pts, DMax):
     result_df['Possibility'] =  (result_df['dist_jump(KM)']/result_df['fuel_jump']) < 1
     result_df['FuelPerKM'] =  result_df['fuel_jump'] /result_df['dist_jump(KM)']
 
+    result_df.to_csv(r"G:\Analytics\FuelAnalysis\results\reults.csv")
+
     # plt.plot(result_df.theft_time, result_df.FuelPerKM)
     # plt.semilogy()
     # plt.show()
-
+    result_df = result_df[result_df['FuelPerKM'] >2]
+    print (len(result_df))
     return result_df

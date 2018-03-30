@@ -9,18 +9,21 @@ def read_SingleCSV(filepath):
     df = pd.read_csv(filepath)
     return df
 
-def read__MultipleCSVs(folder_path):
+def read__MultipleCSVs(folder_path, nfiles):
     allfiles = glob.glob(os.path.join(folder_path, "*.csv"))
     df_list = []
+    n = 0
     for file in allfiles:
-        print (file)
-        df = pd.read_csv(file, names=["lat", "long", "created_at", "updated_at", "device_id", "speed",
-                                             "orientation", "distance", "received_at", "io_state", "availability",
-                                             "blnk",
-                                             'id'])
-        df_list.append(df)
+        if (n< nfiles) :
+            print (file)
+            df = pd.read_csv(file, names=["lat", "long", "created_at", "updated_at", "device_id", "speed",
+                                                 "orientation", "distance", "received_at", "io_state", "availability",
+                                                 "blnk",
+                                                 'id'])
+            df_list.append(df)
+            n+=1
 
-    return df_list
+    return df_list, allfiles
 
 def perform_PreFormating(df):
 
@@ -46,12 +49,16 @@ def perform_postFormating(df):
     df.datetime = df.datetime.apply(lambda x: datetime.datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S"))
     df = df.sort_values(['datetime'], ascending=True)
 
+    df.speed = df.speed.apply(lambda x: float(x))
+    df.distance = df.distance.apply(lambda x: float(x))
+    df.fuelVoltage = df.fuelVoltage.apply(lambda x: float(x))
+
     ###########################################################
     ## Calling Outliar function
 
     #print("Enter Fuel Upper Limit Cutoff : ");
-    fuel_cutoff = 500#input()
-    newDf = removeOutliar(df, fuel_cutoff)
+
+    newDf = removeOutliar(df)
 
     newDf = resetIndex(newDf)
 
@@ -70,12 +77,25 @@ def perform_postFormating(df):
 
 
 
-def removeOutliar(df, y_outliar = 500):
+def removeOutliar(df):
 
-    df = df.sort_values(['datetime'], ascending=True)
+    df = df.sort_values(['datetime'], ascending=True)  ## Sorting Datetime
     df = df[df['distance'] >= 0]
-    df = df[df.fuelVoltage <= int(y_outliar)]
+
+    ## Removing Y-axis outliar using 'mean -3SD'
+    df = df[abs(df.fuelVoltage - df.fuelVoltage.mean()) < 3 * df.fuelVoltage.std()]
     df = resetIndex(df)
+
+    ## Removing Datetime Outliar
+    timeDiff = df.datetime.shift(-1) - df.datetime  ## Calculating consecutive datetime differences between indexs
+    try:
+        ## Building list of Datetimes which are in diff greator than '2 Days' with immediate next datapoint.
+        ## Then extracting index of last datetime of these jargon (sorted) dates
+        lastIndex = timeDiff[timeDiff > pd.Timedelta('2 day')].index[-1]
+    except:
+        lastIndex = -1
+    df = df[(lastIndex +1):]
+
     return df
 
 def resetIndex(df):
@@ -92,32 +112,4 @@ def norm(df, columns = []):
         df[column] = df[column] / df[column].max()
 
     return df
-
-
-def rem_ErrData_OLD(dff, margin = 0.005):
-    x = np.array(dff.index)
-    y = np.array(dff.fuelVoltage)
-
-    from sympy.geometry import Point
-    i = 0
-    dd1 = [0]
-    dd2 = [y[1] - y[0]]
-    for i in range(1, len(x)):
-        try:
-            d1 = abs(y[i] - y[i - 1])
-            d2 = abs(y[i + 1] - y[i])
-        except:
-            continue
-        dd1.append(d1)
-        dd2.append(d2)
-
-    dff['dd1'] = pd.Series(dd1)
-    dff['dd2'] = pd.Series(dd2)
-
-    ## Removing Error Data
-    dff = dff[(dff.dd1 <= margin) & (dff.dd2 <= margin)]
-    dff = dff.reset_index(drop=True)  ## Reseting index
-
-    return dff
-
 
