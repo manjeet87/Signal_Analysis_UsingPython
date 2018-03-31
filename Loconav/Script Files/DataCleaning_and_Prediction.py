@@ -201,6 +201,8 @@ def predit_MissingData(df_old, df_cleaned):
 def generate_PredictTable(df_cleaned, theft_pts, DMax):
     result_df = pd.DataFrame()
     result_df['theft_index'] = [df_cleaned.index[i] for i in theft_pts]
+    result_df['lat'] = [df_cleaned.lat[i] for i in theft_pts]
+    result_df['long'] = [df_cleaned.long[i] for i in theft_pts]
     result_df['theft_time'] = [df_cleaned.datetime[i] for i in theft_pts]
     result_df['fuel_jump'] = [(df_cleaned.fuelVoltage[i] - df_cleaned.fuelVoltage[i + 1]) * 500 for i in theft_pts]
     result_df['dist_jump(KM)'] = [(df_cleaned.distance[i + 1] - df_cleaned.distance[i]) * (.001) * DMax for i in theft_pts]

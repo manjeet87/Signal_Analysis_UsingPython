@@ -38,7 +38,7 @@ def perform_PreFormating(df):
     ##########################################################
     ## Extracting relevant Columns
     newDf = pd.DataFrame()
-    newDf[['datetime', 'speed', 'distance', 'fuelVoltage', 'dev_state']] = df[['received_at', \
+    newDf[['datetime', 'lat','long','speed', 'distance', 'fuelVoltage', 'dev_state']] = df[['received_at','lat','long',
                                                                              'speed', 'distance', 'FuelVoltage', 'dev_state']]
     return newDf
 
