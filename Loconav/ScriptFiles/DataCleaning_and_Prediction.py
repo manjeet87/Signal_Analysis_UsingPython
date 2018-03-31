@@ -9,7 +9,6 @@ def Clean_NoiseData(dff, level):
     x = np.array(dff.index)
     y = np.array(dff.fuelVoltage)
 
-    from sympy.geometry import Point
     i = 0
     dd00000 = [0, 0, 0, 0, 0, 0]
     dd0000 = [0, 0, 0, 0, 0]
@@ -124,8 +123,6 @@ def theft_point(dff, level = 0.05):
 
     theft_pts = []
     ctr = 0
-
-    from sympy.geometry import Point
     i = 0
     dd1 = [0]
 
@@ -197,20 +194,22 @@ def predit_MissingData(df_old, df_cleaned):
     return predict_Data
 
 
-def generate_PredictTable(df_cleaned, theft_pts, DMax):
+def generate_PredictTable(df_cleaned, theft_pts, DMax, fuelMax = 100):
     result_df = pd.DataFrame()
     result_df['theft_index'] = [df_cleaned.index[i] for i in theft_pts]
     result_df['lat'] = [df_cleaned.lat[i] for i in theft_pts]
     result_df['long'] = [df_cleaned.long[i] for i in theft_pts]
     result_df['theft_time'] = [df_cleaned.datetime[i] for i in theft_pts]
-    result_df['fuel_jump'] = [(df_cleaned.fuelVoltage[i] - df_cleaned.fuelVoltage[i + 1]) * 500 for i in theft_pts]
+    
+    result_df['fuel_jump'] = [(df_cleaned.fuelVoltage[i] - df_cleaned.fuelVoltage[i + 1]) *fuelMax for i in theft_pts]
+    
     result_df['dist_jump(KM)'] = [(df_cleaned.distance[i + 1] - df_cleaned.distance[i]) * (.001) * DMax for i in theft_pts]
     result_df['time_jump'] = [(df_cleaned.datetime[i + 1] - df_cleaned.datetime[i]) for i in theft_pts]
 
     result_df['Possibility'] =  (result_df['dist_jump(KM)']/result_df['fuel_jump']) < 1
     result_df['FuelPerKM'] =  result_df['fuel_jump'] /result_df['dist_jump(KM)']
 
-    result_df.to_csv(r"G:\Analytics\FuelAnalysis\results\reults.csv")
+    #result_df.to_csv(r"G:\Analytics\FuelAnalysis\results\reults.csv")
 
     # plt.plot(result_df.theft_time, result_df.FuelPerKM)
     # plt.semilogy()

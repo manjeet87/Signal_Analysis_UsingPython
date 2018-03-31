@@ -74,6 +74,7 @@ def plot_Results(df, df_clean, result_df, xlim = [], ylim = []):
 folderpath = r"G:\Analytics\FuelAnalysis\test2"
 savePath = r"G:\Analytics\FuelAnalysis\results"
 filepath = r""
+fuelMax = 100
 df_list, filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=1)
 ctr = 0
 for df in df_list:
@@ -82,7 +83,7 @@ for df in df_list:
     df = dr.perform_PreFormating(df)
     print ("Dataset_"+str(ctr+1) +" Preformatting Done")
 
-    dff = dr.perform_postFormating(df)
+    dff = dr.perform_postFormating(df, fuelMax)
     print("Dataset_" + str(ctr + 1) + " Postformatting Done")
 
     df_clean = dc.Clean_NoiseData(dff, level= 6)
@@ -94,7 +95,10 @@ for df in df_list:
     #plotData_profiles(df)
     xlim = [13200,14800]
     plot_theftpts(df_clean,theft_pts, xlim = xlim)
-    result_df = dc.generate_PredictTable(df_clean,theft_pts,Dmax)
+    
+    #####################################################################
+    ### Generating results table
+    result_df = dc.generate_PredictTable(df_clean,theft_pts,Dmax, fuelMax)
 
     build_savePath = savePath + r"\result_dataset_" + filesname[ctr].replace(folderpath,"").replace('\\', "")
     result_df.to_csv(build_savePath)
