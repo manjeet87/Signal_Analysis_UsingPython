@@ -11,6 +11,7 @@ def read_SingleCSV(filepath):
 def read__MultipleCSVs(folder_path, nfiles):
     allfiles = glob.glob(os.path.join(folder_path, "*.csv"))
     df_list = []
+    #dtype={"lat": str,"long":str, "speed":str, "distance": str, "io_state":str, "recieved_at":str}
     n = 0
     for file in allfiles:
         if (n< nfiles) :
@@ -28,8 +29,8 @@ def perform_PreFormating(df):
 
     ##########################################################
     ## Capturing IO_State Data
-    df['dev_state'] = df.io_state.apply(lambda x: x[1])
-
+    df['dev_state'] = df.io_state.apply(lambda x: int(x[1]))
+    
     ##########################################################
     ## Capturing Fuel Voltage
     df['FuelVoltage'] = df.io_state.apply(lambda x: int(x[-3:], 16))
@@ -39,7 +40,14 @@ def perform_PreFormating(df):
     newDf = pd.DataFrame()
     newDf[['datetime', 'lat','long','speed', 'distance', 'fuelVoltage', 'dev_state']] = df[['received_at','lat','long',
                                                                              'speed', 'distance', 'FuelVoltage', 'dev_state']]
+    newDf = resetIndex(newDf.copy())
     return newDf
+
+def typecast(x):
+    try: 
+        return float(x)
+    except:
+        return 0
 
 def perform_postFormating(df):
 
@@ -48,31 +56,26 @@ def perform_postFormating(df):
     df.datetime = df.datetime.apply(lambda x: datetime.datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S"))
     df = df.sort_values(['datetime'], ascending=True)
 
-    df.speed = df.speed.apply(lambda x: float(x))
-    df.distance = df.distance.apply(lambda x: float(x))
-    df.fuelVoltage = df.fuelVoltage.apply(lambda x: float(x))
-
+    df.speed = df.speed.apply(lambda x: typecast(x))
+    df.distance = df.distance.apply(lambda x: typecast(x))
+    df.fuelVoltage = df.fuelVoltage.apply(lambda x: typecast(x))
+    
+    ###########################################################
+    ## Removing Device_State OFF Data
+    df['dev_state'] = df['dev_state'].apply(lambda x: int(x))
+    newDf = df[df['dev_state'] == 1]
+    
     ###########################################################
     ## Calling Outliar function
 
     #print("Enter Fuel Upper Limit Cutoff : ");
 
-    newDf = removeOutliar(df)
-
-    newDf = resetIndex(newDf)
-
-    ###########################################################
-    ### Calling Normalisation Function.
-    newDf = norm(newDf, ['distance', 'fuelVoltage', 'speed'])
-
-    ###########################################################
-    ## Removing Device_State OFF Data
-    newDf['dev_state'] = newDf['dev_state'].apply(lambda x: int(x))
-    newDf = newDf[newDf['dev_state'] == 1]
-
-    newDf = resetIndex(newDf)
-
-    return newDf
+    newDf = removeOutliar(newDf)
+    #print(newDf.fuelVoltage.max())
+    
+    newDf2 = resetIndex(newDf.copy())
+    
+    return newDf2
 
 
 
@@ -82,8 +85,9 @@ def removeOutliar(df):
     df = df[df['distance'] >= 0]
 
     ## Removing Y-axis outliar using 'mean -3SD'
-    df = df[abs(df.fuelVoltage - df.fuelVoltage.mean()) < 3 * df.fuelVoltage.std()]
+    df = df[abs(df.fuelVoltage - df.fuelVoltage.median()) <= 2 * df.fuelVoltage.std()]
     df = resetIndex(df)
+    
 
     ## Removing Datetime Outliar
     timeDiff = df.datetime.shift(-1) - df.datetime  ## Calculating consecutive datetime differences between indexs
@@ -105,10 +109,14 @@ def resetIndex(df):
 
 #################################################
 ### Function to normalise
-def norm(df, columns = []):
+def norm(df, fuelMax = 100):
 
-    for column in columns:
-        df[column] = df[column] / df[column].max()
-
+    df['distance'] = df['distance'] / df['distance'].max()
+    df['speed'] = df['speed'] / df['speed'].max()
+    if fuelMax ==100 :
+        df['fuelVoltage'] = (df['fuelVoltage'] - df['fuelVoltage'].min())/ (df['fuelVoltage'].max()- df['fuelVoltage'].min())
+    else:
+        df['fuelVoltage'] = df['fuelVoltage'] /fuelMax
+        
     return df
 

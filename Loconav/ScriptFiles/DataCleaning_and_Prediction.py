@@ -5,11 +5,39 @@ desired_width = 360
 pd.set_option('display.width', desired_width)
 
 
+#################################################
+### Function to normalise
+def norm(df, fuelMax = 100):
+
+    df['distance'] = df['distance'] / df['distance'].max()
+    df['speed'] = df['speed'] / df['speed'].max()
+    if fuelMax ==100 :
+        df['fuelVoltage'] = (df['fuelVoltage'] - df['fuelVoltage'].min())/ (df['fuelVoltage'].max()- df['fuelVoltage'].min())
+    else:
+        df['fuelVoltage'] = (df['fuelVoltage'] - df['fuelVoltage'].min())/ (fuelMax - df['fuelVoltage'].min())
+        
+    return df
+
+
 def Clean_NoiseData(dff, level):
-    x = np.array(dff.index)
-    y = np.array(dff.fuelVoltage)
+    
+    ###########################################################
+    ### Calling Normalisation Function.
+    #dff = norm(dff.copy(), dff.fuelVoltage.max())
+    
+    ###########################################################
+    ## Removing bottom 1% of FuelMax Values
+    newDf = dff[dff.fuelVoltage > 0.01*(dff.fuelVoltage.max()  - dff.fuelVoltage.min())]
+    
+    
+    x = np.array(newDf.index)
+    y = np.array(newDf.fuelVoltage)
 
     i = 0
+    
+    ## Neighbourhood Distance
+    Nds = 0.01*(newDf.fuelVoltage.max()  - newDf.fuelVoltage.min())
+                
     dd00000 = [0, 0, 0, 0, 0, 0]
     dd0000 = [0, 0, 0, 0, 0]
     dd000 = [0, 0, 0, 0]
@@ -98,9 +126,9 @@ def Clean_NoiseData(dff, level):
         dff1 = dff1.reset_index(drop=True)  ## Reseting index
 
     if level == 6:
-        dff1 = dff[(dff.dd1 <= 0.02) & (dff.dd2 <= 0.02) & (dff.dd0 <= 0.04) & (dff.dd3 <= 0.04) &
-                   (dff.dd00 <= 0.06) & (dff.dd4 <= 0.06) & (dff.dd000 <= 0.08) & (dff.dd5 <= 0.08) &
-                   (dff.dd0000 <= 0.1) & (dff.dd6 <= 0.1) & (dff.dd00000 <= 0.12) & (dff.dd7 <= 0.12)]
+        dff1 = dff[(dff.dd1 <= Nds) & (dff.dd2 <= Nds) & (dff.dd0 <= 2*Nds) & (dff.dd3 <= 2*Nds) &
+                   (dff.dd00 <= 3*Nds) & (dff.dd4 <= 3*Nds) & (dff.dd000 <= 4*Nds) & (dff.dd5 <= 4*Nds) &
+                   (dff.dd0000 <= 5*Nds) & (dff.dd6 <= 5*Nds) & (dff.dd00000 <= 6*Nds) & (dff.dd7 <= 6*Nds)]
         dff1 = dff1.reset_index(drop=True)  ## Reseting index
 
     # plt.rcParams['figure.figsize'] = [16, 4]
@@ -117,10 +145,11 @@ def Clean_NoiseData(dff, level):
     return dff1
 
 
-def theft_point(dff, level = 0.05):
+def theft_point(dff, tlevel = 0.05):
     x = np.array(dff.index)
     y = np.array(dff.fuelVoltage)
-
+    
+    level = tlevel*(dff.fuelVoltage.max()  - dff.fuelVoltage.min())
     theft_pts = []
     ctr = 0
     i = 0
