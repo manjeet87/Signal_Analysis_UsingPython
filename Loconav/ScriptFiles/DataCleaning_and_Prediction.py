@@ -5,38 +5,14 @@ desired_width = 360
 pd.set_option('display.width', desired_width)
 
 
-#################################################
-### Function to normalise
-def norm(df, fuelMax = 100):
-
-    df['distance'] = df['distance'] / df['distance'].max()
-    df['speed'] = df['speed'] / df['speed'].max()
-    if fuelMax ==100 :
-        df['fuelVoltage'] = (df['fuelVoltage'] - df['fuelVoltage'].min())/ (df['fuelVoltage'].max()- df['fuelVoltage'].min())
-    else:
-        df['fuelVoltage'] = (df['fuelVoltage'] - df['fuelVoltage'].min())/ (fuelMax - df['fuelVoltage'].min())
-        
-    return df
-
-
-def Clean_NoiseData(dff, level):
-    
-    ###########################################################
-    ### Calling Normalisation Function.
-    #dff = norm(dff.copy(), dff.fuelVoltage.max())
-    
-    ###########################################################
-    ## Removing bottom 1% of FuelMax Values
-    newDf = dff[dff.fuelVoltage > 0.01*(dff.fuelVoltage.max()  - dff.fuelVoltage.min())]
-    
-    
-    x = np.array(newDf.index)
-    y = np.array(newDf.fuelVoltage)
+def Clean_NoiseData(dff, level, fuelMax, fuelMin):
+    x = np.array(dff.index)
+    y = np.array(dff.fuelVoltage)
 
     i = 0
     
     ## Neighbourhood Distance
-    Nds = 0.01*(newDf.fuelVoltage.max()  - newDf.fuelVoltage.min())
+    Nds = 0.01*(fuelMax - fuelMin)
                 
     dd00000 = [0, 0, 0, 0, 0, 0]
     dd0000 = [0, 0, 0, 0, 0]
@@ -145,12 +121,14 @@ def Clean_NoiseData(dff, level):
     return dff1
 
 
-def theft_point(dff, tlevel = 0.05):
+def jump_point(dff, level = 0.05, fuelMax=100, fuelMin=0):
     x = np.array(dff.index)
     y = np.array(dff.fuelVoltage)
     
-    level = tlevel*(dff.fuelVoltage.max()  - dff.fuelVoltage.min())
+    level = level*(fuelMax - fuelMin)
     theft_pts = []
+    refpts = []
+    rctr = 0
     ctr = 0
     i = 0
     dd1 = [0]
@@ -168,6 +146,16 @@ def theft_point(dff, tlevel = 0.05):
         # dd1.append(d1)
         # dd2.append(d2)
         # if (d1 >= 0.05) & (d2 >= 0.05)&(d3 >= 0.05)&(d4 >= 0.05)&(d5 >= 0.05)&(d5 >= 0.05):
+
+        ###########################################################################
+        #### Finding probable refueling Points
+        if ((sum(d_forward > 1 * 3 * level) in list(range(14, 16)))):  # & (sum(d_forward<0.1) == 19)):
+            if (sum(d_backward > 1 * 3 * level) in list(range(14, 16))):
+                refpts.append(dff.index[i])
+                rctr += 1
+
+        ############################################################################
+        #### Finding probable theft points
         if ((sum(d_forward < -1 * level) in list(range(14, 16)))):  # & (sum(d_forward<0.1) == 19)):
             if (sum(d_backward < -1 * level) in list(range(14, 16))):
                 theft_pts.append(dff.index[i])
@@ -185,9 +173,7 @@ def theft_point(dff, tlevel = 0.05):
     # dff['dd1'] = pd.Series(dd1)
     # dff['dd2'] = pd.Series(dd2)
     print(len(theft_pts))
-    return theft_pts
-
-    return theft_pts
+    return theft_pts, refpts
 
 
 def predit_MissingData(df_old, df_cleaned):
@@ -223,26 +209,26 @@ def predit_MissingData(df_old, df_cleaned):
     return predict_Data
 
 
-def generate_PredictTable(df_cleaned, theft_pts, DMax, fuelMax = 100):
+def generate_PredictTable(df_cleaned, theft_pts, DMax, fuelMax = 100, fuelMin = 0):
     result_df = pd.DataFrame()
     result_df['theft_index'] = [df_cleaned.index[i] for i in theft_pts]
     result_df['lat'] = [df_cleaned.lat[i] for i in theft_pts]
     result_df['long'] = [df_cleaned.long[i] for i in theft_pts]
     result_df['theft_time'] = [df_cleaned.datetime[i] for i in theft_pts]
     
-    result_df['fuel_jump'] = [(df_cleaned.fuelVoltage[i] - df_cleaned.fuelVoltage[i + 1]) *fuelMax for i in theft_pts]
+    result_df['fuel_PercentJump'] = [(df_cleaned.fuelVoltage[i] - df_cleaned.fuelVoltage[i + 1]) for i in theft_pts]
     
-    result_df['dist_jump(KM)'] = [(df_cleaned.distance[i + 1] - df_cleaned.distance[i]) * (.001) * DMax for i in theft_pts]
+    result_df['dist_jump(KM)'] = [(df_cleaned.distance[i + 1] - df_cleaned.distance[i]) * (.001) for i in theft_pts]
     result_df['time_jump'] = [(df_cleaned.datetime[i + 1] - df_cleaned.datetime[i]) for i in theft_pts]
 
-    result_df['Possibility'] =  (result_df['dist_jump(KM)']/result_df['fuel_jump']) < 1
-    result_df['FuelPerKM'] =  result_df['fuel_jump'] /result_df['dist_jump(KM)']
+    result_df['Possibility'] =  (result_df['dist_jump(KM)']/result_df['fuel_PercentJump']) < 1
+    result_df['FuelVoltagePerKM'] =  result_df['fuel_PercentJump'] /result_df['dist_jump(KM)']
 
     #result_df.to_csv(r"G:\Analytics\FuelAnalysis\results\reults.csv")
 
     # plt.plot(result_df.theft_time, result_df.FuelPerKM)
     # plt.semilogy()
     # plt.show()
-    result_df = result_df[result_df['FuelPerKM'] >2]
+    result_df = result_df[result_df['FuelVoltagePerKM'] >2]
     print (len(result_df))
     return result_df

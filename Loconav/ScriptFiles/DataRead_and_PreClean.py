@@ -29,8 +29,8 @@ def perform_PreFormating(df):
 
     ##########################################################
     ## Capturing IO_State Data
-    df['dev_state'] = df.io_state.apply(lambda x: int(x[1]))
-    
+    df['dev_state'] = df.io_state.apply(lambda x: x[1])
+
     ##########################################################
     ## Capturing Fuel Voltage
     df['FuelVoltage'] = df.io_state.apply(lambda x: int(x[-3:], 16))
@@ -40,7 +40,6 @@ def perform_PreFormating(df):
     newDf = pd.DataFrame()
     newDf[['datetime', 'lat','long','speed', 'distance', 'fuelVoltage', 'dev_state']] = df[['received_at','lat','long',
                                                                              'speed', 'distance', 'FuelVoltage', 'dev_state']]
-    newDf = resetIndex(newDf.copy())
     return newDf
 
 def typecast(x):
@@ -71,9 +70,18 @@ def perform_postFormating(df):
     #print("Enter Fuel Upper Limit Cutoff : ");
 
     newDf = removeOutliar(newDf)
-    #print(newDf.fuelVoltage.max())
+   # print(newDf.fuelVoltage.max())
+
+        
+    ###########################################################
+    ### Calling Normalisation Function.
+    #newDf2 = norm(newDf.copy(), fuelMax)
+   # print(newDf2.fuelVoltage.max())
+    ###########################################################
+    ## Removing bottom 1% of FuelMax Values
+    newDf2 = newDf[newDf.fuelVoltage > 0.01*(newDf.fuelVoltage.max() - newDf.fuelVoltage.min())]
     
-    newDf2 = resetIndex(newDf.copy())
+    newDf2 = resetIndex(newDf2.copy())
     
     return newDf2
 
@@ -85,7 +93,7 @@ def removeOutliar(df):
     df = df[df['distance'] >= 0]
 
     ## Removing Y-axis outliar using 'mean -3SD'
-    df = df[abs(df.fuelVoltage - df.fuelVoltage.median()) <= 2 * df.fuelVoltage.std()]
+    df = df[abs(df.fuelVoltage - df.fuelVoltage.mean()) < 2 * df.fuelVoltage.std()]
     df = resetIndex(df)
     
 
@@ -109,14 +117,14 @@ def resetIndex(df):
 
 #################################################
 ### Function to normalise
-def norm(df, fuelMax = 100):
+def norm(df, fuelMax = 100, fuelMin = 0):
 
     df['distance'] = df['distance'] / df['distance'].max()
     df['speed'] = df['speed'] / df['speed'].max()
     if fuelMax ==100 :
         df['fuelVoltage'] = (df['fuelVoltage'] - df['fuelVoltage'].min())/ (df['fuelVoltage'].max()- df['fuelVoltage'].min())
     else:
-        df['fuelVoltage'] = df['fuelVoltage'] /fuelMax
+        df['fuelVoltage'] = (df['fuelVoltage'] - fuelMin)/(fuelMax - fuelMin)
         
     return df
 

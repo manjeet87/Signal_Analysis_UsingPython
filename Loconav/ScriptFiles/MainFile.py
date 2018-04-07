@@ -22,50 +22,118 @@ def plotData_profiles(df):
 
 #######################################################
 ### Function to Plot theft Points over Cleaned Data
-def plot_theftpts(cleanedDf , theftpts = [], xlim=[], ylim = []):
-
+def plot_theftpts(cleanedDf, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[]):
     plt.rcParams['figure.figsize'] = [20, 4]
     # plt.subplot(6,1,1)
-    plt.plot(cleanedDf.index, cleanedDf.fuelVoltage, 'g.', markersize=2, linewidth=1);
-    plt.plot(cleanedDf.index, cleanedDf.distance, 'b-', markersize=2, linewidth=1);
-    if len(xlim) !=0:
+    fig, ax1 = plt.subplots()
+    ax1.plot(cleanedDf.index, cleanedDf.fuelVoltage, 'g.', markersize=2, linewidth=1)
+    ax1.set_xlabel('time index')
+    # Make the y-axis label, ticks and tick labels match the line color.
+    ax1.set_ylabel('FuelVoltage', color='b')
+    ax1.tick_params('y', colors='b')
+    if len(ylim1) != 0:
+        ax1.set_ylim(ylim1)
+
+    ax2 = ax1.twinx()
+    ax2.plot(cleanedDf.index, cleanedDf.distance, 'b-', markersize=2, linewidth=1)
+    ax2.set_ylabel('Distance', color='b')
+    if len(ylim2) != 0:
+        ax2.set_ylim(ylim2)
+    plt.title("Initial Prediction theft Points - ZOOMED")
+    if len(xlim) != 0:
         plt.xlim(xlim)
-    if len(ylim)!=0:
-        plt.ylim(ylim)
+
     for pt in theftpts:
-        plt.axvline(pt)
+        ax1.axvline(pt, color='black')
+
+    for pt in refPts:
+        ax1.axvline(pt, color='Red')
     plt.show()
 
-def plot_Results(df, df_clean, result_df, xlim = [], ylim = []):
 
-    plt.rcParams['figure.figsize']=[20,4]
-    plt.subplot(3, 1, 1)
-    plt.plot(df.datetime, df.fuelVoltage, 'g.', markersize=1, linewidth=1);
-    plt.plot(df.datetime, df.distance, 'b-', markersize=1, linewidth=1);
+def plot_Results(df, df_clean, result_df, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[]):
+    plt.rcParams['figure.figsize'] = [16, 12]
+    fig, axi = plt.subplots(4, 1)
+    axi[0].plot(df.datetime, df.fuelVoltage, 'g.', markersize=1, linewidth=1);
+    # plt.plot(df.datetime, df.distance, 'b-', markersize=1, linewidth=1);
+    axi[0].set_title('Original FuelData vs Time')
+    axi[0].set_xlabel('time')
 
-    plt.subplot(3, 1, 2)
-    plt.plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=1, linewidth=1);
-    plt.plot(df_clean.index, df_clean.distance, 'b-', markersize=1, linewidth=1);
+    axi[1].plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=2, linewidth=1)
+    axi[1].set_xlabel('time index')
+    # Make the y-axis label, ticks and tick labels match the line color.
+    axi[1].set_ylabel('FuelVoltage', color='b')
+    axi[1].tick_params('y', colors='b')
+    if len(ylim1) != 0:
+        axi[1].set_ylim(ylim1)
 
-    if len(xlim) !=0:
+    ax2 = axi[1].twinx()
+    ax2.plot(df_clean.index, df_clean.distance, 'b-', markersize=2, linewidth=1)
+    ax2.set_ylabel('Distance', color='b')
+    if len(ylim2) != 0:
+        ax2.set_ylim(ylim2)
+    if len(xlim) != 0:
         plt.xlim(xlim)
-    if len(ylim)!=0:
-        plt.ylim(ylim)
+    axi[1].set_title('Cleaned Data')
+    for pt in theftpts:
+        axi[1].axvline(pt, color='black')
+
+    for pt in refPts:
+        axi[1].axvline(pt, color='Red')
+
+    axi[2].plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=2, linewidth=1)
+    axi[2].set_xlabel('time index')
+    # Make the y-axis label, ticks and tick labels match the line color.
+    axi[2].set_ylabel('FuelVoltage', color='b')
+    axi[2].tick_params('y', colors='b')
+    if len(ylim1) != 0:
+        axi[2].set_ylim(ylim1)
+
+    ax2 = axi[2].twinx()
+    ax2.plot(df_clean.index, df_clean.distance, 'b-', markersize=2, linewidth=1)
+    ax2.set_ylabel('Distance', color='b')
+    if len(ylim2) != 0:
+        axi[2].set_ylim(ylim2)
+
+    if len(xlim) != 0:
+        plt.xlim(xlim)
+    plt.title('Final Predicted Theft Pts - ZOOMED')
 
     for pt in result_df.theft_index:
-        plt.axvline(pt)
+        plt.axvline(pt, color='black')
 
-    plt.subplot(3, 1, 3)
-    plt.plot(result_df.theft_index, result_df.fuel_jump, 'g.', markersize=3, linewidth=1);
+    for pt in refPts:
+        axi[2].axvline(pt, color='Red')
 
-    if len(xlim) !=0:
-        plt.xlim(xlim)
-    if len(ylim)!=0:
-        plt.ylim(ylim)
+    axi[3].plot(result_df.theft_index, result_df['fuel_PercentJump'], 'g-', markersize=3, linewidth=1);
+    axi[3].set_title('Fuel/km Ratio at Predicted theft pts - ZOOMED')
 
-    #plt.plot(df_clean.index, df_clean.distance, 'b-', markersize=1, linewidth=1);
+    axi[3].set_xlabel('time index')
+
+    fig.tight_layout()
+
+    #     if len(xlim) !=0:
+    #         plt.xlim(xlim)
+    #     if len(ylim)!=0:
+    #         plt.ylim(ylim)
+
+    # plt.plot(df_clean.index, df_clean.distance, 'b-', markersize=1, linewidth=1);
 
     plt.show()
+
+#####################################################################
+### Function to generate FuelMaxVoltage & FuelMinVoltage, to be sent
+### to the main devices database for records.
+def Gen_FuelMaxMin(df):
+    df = dr.perform_PreFormating(df)
+    dff = dr.perform_postFormating(df)
+
+    fmax = dff.fuelVoltage.max()
+    fmin = dff.fuelVoltage.min()
+
+    df_clean = dc.Clean_NoiseData(dff, 6, fmax, fmin)
+
+    return df_clean.fuelVoltage.max(), df_clean.fuelVoltage.min()
 
 
 ######################################################################
@@ -74,27 +142,35 @@ def plot_Results(df, df_clean, result_df, xlim = [], ylim = []):
 folderpath = r"G:\Analytics\FuelAnalysis\test2"
 savePath = r"G:\Analytics\FuelAnalysis\results"
 filepath = r""
-fuelMax = 100
-df_list, filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=1)
+
+########################################################################
+#### MAX MIN to passed on to function to examine fueldata on small dataset.
+#### To be read originally from Main Database of devices.
+
+#########################################################################
+
+df_list, filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=4)
 ctr = 0
 for df in df_list:
     #df_list[0].info()
+    fuelMax, fuelMin = Gen_FuelMaxMin(df)
     Dmax = df.distance.max()
+    print (fuelMax, fuelMin)
     df = dr.perform_PreFormating(df)
     print ("Dataset_"+str(ctr+1) +" Preformatting Done")
 
-    dff = dr.perform_postFormating(df, fuelMax)
+    dff = dr.perform_postFormating(df)
     print("Dataset_" + str(ctr + 1) + " Postformatting Done")
 
-    df_clean = dc.Clean_NoiseData(dff, level= 6)
+    df_clean = dc.Clean_NoiseData(dff, 6, fuelMax, fuelMin)
     print("Dataset_" + str(ctr + 1) + " Data Cleaning Done")
 
-    theft_pts = dc.theft_point(df_clean, level= 0.01)
+    theft_pts, refpts = dc.jump_point(df_clean, 0.01, fuelMax, 0)
     print("Dataset_" + str(ctr + 1) + " Theft points Indentified")
 
     #plotData_profiles(df)
-    xlim = [13200,14800]
-    plot_theftpts(df_clean,theft_pts, xlim = xlim)
+    xlim = []
+    plot_theftpts(df_clean,theftpts=[], refPts=refpts, xlim = xlim)
     
     #####################################################################
     ### Generating results table
@@ -103,6 +179,6 @@ for df in df_list:
     build_savePath = savePath + r"\result_dataset_" + filesname[ctr].replace(folderpath,"").replace('\\', "")
     result_df.to_csv(build_savePath)
 
-    plot_Results(dff,df_clean,result_df, xlim = xlim)
+    plot_Results(dff,df_clean,result_df, theftpts= theft_pts, refPts=refpts, xlim = xlim)
     ctr+=1
     print(result_df)
