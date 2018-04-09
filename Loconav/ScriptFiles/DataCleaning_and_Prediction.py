@@ -208,27 +208,68 @@ def predit_MissingData(df_old, df_cleaned):
 
     return predict_Data
 
+#########################################################################
+#### Function to find average to maximum fuel Consumption Rate,
+#### To be used to validate theft points
+#########################################################################
+def findMax_decayRate(cleanDf, fuelMax, fuelMin):
+    i = 0
+    df_window = (fuelMax - fuelMin) / 500
+    avgDT = []
+    indexlst = []
 
-def generate_PredictTable(df_cleaned, theft_pts, DMax, fuelMax = 100, fuelMin = 0):
+    while i < len(cleanDf):
+        df = 0
+        dfRef = cleanDf.fuelVoltage[i]
+        dsRef = cleanDf.distance[i]
+        while (df <= df_window and i < len(cleanDf)):
+            df = dfRef - cleanDf.fuelVoltage[i]
+            if df < 0:
+                dfRef = cleanDf.fuelVoltage[i]
+            i += 1
+            # print(i)
+
+        if i < len(cleanDf):
+            ds = cleanDf.distance[i] - dsRef
+            if df > 0:
+                # print (i)
+                if ds == 0:
+                    ds = df / 1000
+                    # print("df = ",df,"****",i)
+                avg = df / ds
+                avgDT.append(avg)
+                indexlst.append(cleanDf.index[i])
+
+    med = pd.Series(avgDT).median()
+    mean = pd.Series(avgDT).mean()
+    avg = pd.Series(avgDT)
+    ##################################################################
+    ### Max Allowable decayRate = Median  +  3* MedianDeviation
+    max_decayRate = 1000*(avg.median() + 3 * abs(avg - avg.median()).median())
+    print (avg.median())
+
+    return max_decayRate
+
+
+def generate_PredictTable(df_cleaned, theft_pts, max_DecayRate):
     result_df = pd.DataFrame()
     result_df['theft_index'] = [df_cleaned.index[i] for i in theft_pts]
     result_df['lat'] = [df_cleaned.lat[i] for i in theft_pts]
     result_df['long'] = [df_cleaned.long[i] for i in theft_pts]
     result_df['theft_time'] = [df_cleaned.datetime[i] for i in theft_pts]
     
-    result_df['fuel_PercentJump'] = [(df_cleaned.fuelVoltage[i] - df_cleaned.fuelVoltage[i + 1]) for i in theft_pts]
+    result_df['fuel_VoltageJump'] = [(df_cleaned.fuelVoltage[i] - df_cleaned.fuelVoltage[i + 1]) for i in theft_pts]
     
     result_df['dist_jump(KM)'] = [(df_cleaned.distance[i + 1] - df_cleaned.distance[i]) * (.001) for i in theft_pts]
     result_df['time_jump'] = [(df_cleaned.datetime[i + 1] - df_cleaned.datetime[i]) for i in theft_pts]
 
-    result_df['Possibility'] =  (result_df['dist_jump(KM)']/result_df['fuel_PercentJump']) < 1
-    result_df['FuelVoltagePerKM'] =  result_df['fuel_PercentJump'] /result_df['dist_jump(KM)']
+    result_df['fuelVoltagePerKM'] =  result_df['fuel_VoltageJump'] /result_df['dist_jump(KM)']
 
     #result_df.to_csv(r"G:\Analytics\FuelAnalysis\results\reults.csv")
 
     # plt.plot(result_df.theft_time, result_df.FuelPerKM)
     # plt.semilogy()
     # plt.show()
-    result_df = result_df[result_df['FuelVoltagePerKM'] >2]
+    result_df = result_df[result_df['fuelVoltagePerKM'] >max_DecayRate]
     print (len(result_df))
     return result_df

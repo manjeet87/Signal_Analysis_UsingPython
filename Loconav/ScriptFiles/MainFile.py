@@ -105,7 +105,7 @@ def plot_Results(df, df_clean, result_df, theftpts=[], refPts=[], xlim=[], ylim1
     for pt in refPts:
         axi[2].axvline(pt, color='Red')
 
-    axi[3].plot(result_df.theft_index, result_df['fuel_PercentJump'], 'g-', markersize=3, linewidth=1);
+    axi[3].plot(result_df.theft_index, result_df['fuel_VoltageJump'], 'g-', markersize=3, linewidth=1);
     axi[3].set_title('Fuel/km Ratio at Predicted theft pts - ZOOMED')
 
     axi[3].set_xlabel('time index')
@@ -146,8 +146,10 @@ filepath = r""
 ########################################################################
 #### MAX MIN to passed on to function to examine fueldata on small dataset.
 #### To be read originally from Main Database of devices.
-
 #########################################################################
+fuelMax = 100
+fuelMin = 0
+
 
 df_list, filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=4)
 ctr = 0
@@ -171,10 +173,16 @@ for df in df_list:
     #plotData_profiles(df)
     xlim = []
     plot_theftpts(df_clean,theftpts=[], refPts=refpts, xlim = xlim)
+
+    #################################################################
+    #### Find Avg Consumption Rate Range
+    max_DecayRate = dc.findMax_decayRate(df_clean, fuelMax, fuelMin)
+    print("Dataset_" + str(ctr + 1) + " Max Decay Rate evaluated")
+    print(max_DecayRate)
     
     #####################################################################
     ### Generating results table
-    result_df = dc.generate_PredictTable(df_clean,theft_pts,Dmax, fuelMax)
+    result_df = dc.generate_PredictTable(df_clean, theft_pts, max_DecayRate)
 
     build_savePath = savePath + r"\result_dataset_" + filesname[ctr].replace(folderpath,"").replace('\\', "")
     result_df.to_csv(build_savePath)
