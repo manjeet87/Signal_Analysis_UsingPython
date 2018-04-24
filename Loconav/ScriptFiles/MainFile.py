@@ -51,7 +51,7 @@ def plot_theftpts(cleanedDf, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[]
     plt.show()
 
 
-def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[]):
+def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[], savepth= " "):
     plt.rcParams['figure.figsize'] = [16, 12]
     fig, axi = plt.subplots(4, 1)
     axi[0].plot(df.datetime, df.fuelVoltage, 'g.', markersize=1, linewidth=1);
@@ -126,7 +126,8 @@ def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xli
 
     # plt.plot(df_clean.index, df_clean.distance, 'b-', markersize=1, linewidth=1);
 
-    plt.show()
+    plt.savefig(savepth + '_R2.png')
+    plt.close()
 
 #####################################################################
 ### Function to generate FuelMaxVoltage & FuelMinVoltage, to be sent
@@ -138,15 +139,32 @@ def Gen_FuelMaxMin(df):
     fmax = dff.fuelVoltage.max()
     fmin = dff.fuelVoltage.min()
 
-    df_clean = dc.Clean_NoiseData(dff, 6, fmax, fmin)
+    df_clean = dc.Clean_NoiseData(dff, 6, fmax, fmin, 0)
 
     return df_clean.fuelVoltage.max(), df_clean.fuelVoltage.min()
+
+def avg_NeigbourDistance(dff):
+    dd = dff.fuelVoltage.shift(-1) - dff.fuelVoltage
+    dd = dd.dropna()
+    dd2 = dd[abs(dd - dd.mean()) < 1.5 * dd.std()]
+    meddev = abs(dd2 - dd2.median()).median()
+    meddev2 = abs(dd2 - dd2.median()).mean()
+    print(dd.median(), 2 * meddev, 2 * dd.std(), 0.01 * (fuelMax - fuelMin), 0.01 * (fuelMax - 0.05 * fuelMax))
+    distrow = [dd2.median(), 2 * meddev2, 2 * meddev, 2 * dd2.std(), 0.01 * (fuelMax - fuelMin),
+                       0.01 * (fuelMax - 0.05 * fuelMax)]
+    #print(dd)
+    #plt.hist(dd, bins=100)
+   # plt.axvline(dd.median(), color = 'black')
+    #plt.axvline(2*dd.std(), color = 'black')
+    #plt.semilogy()
+    neb_dist = 2 * meddev
+    return neb_dist, distrow
 
 ######################################################################
 #### Main Code Starts
 
-folderpath = r"G:\Analytics\FuelAnalysis\test3"
-savePath = r"G:\Analytics\FuelAnalysis\results"
+folderpath = r"H:\Analytics\FuelAnalysis\test"
+savePath = r"H:\Analytics\FuelAnalysis\results"
 filepath = r""
 
 ########################################################################
@@ -156,60 +174,90 @@ filepath = r""
 fuelMax = 100
 fuelMin = 0
 
-df_list, filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=5)
+
+filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=35)
 ctr = 0
-for df in df_list:
+error_log = pd.DataFrame()
+distDF = pd.DataFrame(columns=['median','2*Medev2', '2*Meddev','2*std','MaxMin','MaxMin0'])
+filename=[]
+errLog = []
+for file in filesname:
     #df_list[0].info()
-    fuelMax, fuelMin = Gen_FuelMaxMin(df)
-    print (fuelMax, fuelMin)
-    df = dr.perform_PreFormating(df)
-    print ("Dataset_"+str(ctr+1) +" Preformatting Done")
+    df = dr.read_SingleCSV(file)
+    build_savePath = savePath + r"\dataset_" + str(ctr) + "_results"
 
-    dff, dff2 = dr.perform_postFormating(df)
-    print("Dataset_" + str(ctr + 1) + " Postformatting Done")
+    try:
+        fuelMax, fuelMin = Gen_FuelMaxMin(df)
+        print("MaxMin : ",fuelMax, fuelMin)
+        df = dr.perform_PreFormating(df)
+        print("Dataset_" + str(ctr + 1) + " Preformatting Done")
 
-    Dmax = dff.distance.max()
-    df_clean = dc.Clean_NoiseData(dff, 6, fuelMax, fuelMin)
-    print("Dataset_" + str(ctr + 1) + " Data Cleaning Done")
+        dff, dff2 = dr.perform_postFormating(df)
+        print("Dataset_" + str(ctr + 1) + " Postformatting Done")
 
-    theft_pts, refpts = dc.jump_point(df_clean, 0.01, fuelMax, 0)
-    print("Dataset_" + str(ctr + 1) + " Theft points Indentified")
+        neb_dist, distrow = avg_NeigbourDistance(dff)
+        distDF.loc[ctr] = distrow
 
-    #plotData_profiles(df)
-    xlim = []
-    plot_theftpts(df_clean,theftpts=[], refPts=refpts, xlim = xlim)
+        # Dmax = dff.distance.max()
+        # df_clean = dc.Clean_NoiseData(dff, fuelMax, fuelMin, neb_dist)
+        # print("Dataset_" + str(ctr + 1) + " Data Cleaning Done")
+        #
+        # plt.plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=1)
+        #
+        # plt.savefig(build_savePath + '_R1.png')
+        # plt.close()
 
-    #################################################################
-    #### Find Avg Consumption Rate Range
-    max_DecayRate = dc.findMax_decayRate(df_clean, fuelMax, fuelMin)
-    print("Dataset_" + str(ctr + 1) + " Max Decay Rate evaluated")
-    print(max_DecayRate)
-    
-    #####################################################################
-    ### Generating results table for theft points
-    result_df = dc.generate_PredictTable(df_clean, theft_pts, max_DecayRate, fuelMax, fuelMin)
+        # theft_pts, refpts = dc.jump_point(df_clean, 0.01, fuelMax, 0)
+        # print("Dataset_" + str(ctr + 1) + " Theft points Indentified")
+        #
+        # #plotData_profiles(df)
+        # xlim = []
+        # #plot_theftpts(df_clean,theftpts=[], refPts=refpts, xlim = xlim)
+        #
+        #
+        # #################################################################
+        # #### Find Avg Consumption Rate Range
+        # max_DecayRate = dc.findMax_decayRate(df_clean, fuelMax, fuelMin)
+        # print("Dataset_" + str(ctr + 1) + " Max Decay Rate evaluated")
+        # print(max_DecayRate)
+        #
+        # #####################################################################
+        # ### Generating results table for theft points
+        # result_df = dc.generate_PredictTable(df_clean, theft_pts, max_DecayRate, fuelMax, fuelMin)
+        #
+        # build_savePath = savePath + r"\result_dataset_" + filesname[ctr].replace(folderpath,"").replace('\\', "")
+        # #result_df.to_csv(build_savePath)
+        #
+        # ######################################################################
+        # #### Generate Refuel Table
+        # refuel_df = dc.generate_ReFuelTable(df_clean, ref_pts= refpts, fuelMax=fuelMax, fuelMin=fuelMin)
+        #
+        # ######################################################################
+        # #### Generate Smooth Equivalent Curve
+        # smooth_df = dc.generate_SmoothCurve(df_clean)
+        #
+        # ######################################################################
+        # ##### Finding Refueling distance, or avg distance vehicle can travel from current fuel Level
+        # curr_fuelVoltage = 0.25*(fuelMax - fuelMin) + fuelMin
+        # refuel_Distance = dc.findAvg_RefuelDistance(df_clean, curr_fuelVoltage,fuelMax, fuelMin)
+        # print ("Avg. Distance that can be travelled Before Refueling = ", round(refuel_Distance,2), " Kms")
+        #
+        # #predDF = dc.predit_MissingData(dff2, df_clean)
+        # ####Plotting complete results
+        #
+        # plot_Results(dff,df_clean,result_df, smooth_df, theftpts= theft_pts, refPts=refpts, xlim = xlim, savepth = build_savePath)
+        #
 
-    build_savePath = savePath + r"\result_dataset_" + filesname[ctr].replace(folderpath,"").replace('\\', "")
-    result_df.to_csv(build_savePath)
-
-    ######################################################################
-    #### Generate Refuel Table
-    refuel_df = dc.generate_ReFuelTable(df_clean, ref_pts= refpts, fuelMax=fuelMax, fuelMin=fuelMin)
-
-    ######################################################################
-    #### Generate Smooth Equivalent Curve
-    smooth_df = dc.generate_SmoothCurve(df_clean)
-
-    ######################################################################
-    ##### Finding Refueling distance, or avg distance vehicle can travel from current fuel Level
-    curr_fuelVoltage = 0.25*(fuelMax - fuelMin) + fuelMin
-    refuel_Distance = dc.findAvg_RefuelDistance(df_clean, curr_fuelVoltage,fuelMax, fuelMin)
-    print ("Avg. Distance that can be travelled Before Refueling = ", round(refuel_Distance,2), " Kms")
-
-    predDF = dc.predit_MissingData(dff2, df_clean)
-    ####Plotting complete results
-    plt.plot(predDF.index, predDF.predictFuelVolt,'g.', markersize =2)
-    plot_Results(dff,df_clean,result_df, smooth_df, theftpts= theft_pts, refPts=refpts, xlim = xlim)
-    ctr+=1
-    print(result_df)
-    print(refuel_df)
+        ctr+=1
+        #print(result_df)
+        #print(refuel_df)
+    except Exception as e:
+        filename.append(build_savePath)
+        errLog.append(str(e))
+        print (e)
+        print ("HUUUUGE Errorrs")
+        ctr+=1
+error_log['Filename'] = pd.Series(filename)
+error_log['error_Log'] = pd.Series(errLog)
+error_log.to_csv("ErrorLog.csv")
+distDF.to_csv("distanceDf.csv")

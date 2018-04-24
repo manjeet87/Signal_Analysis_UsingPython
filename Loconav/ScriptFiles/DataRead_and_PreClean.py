@@ -4,30 +4,21 @@ import datetime
 import glob
 import os
 
-def read_SingleCSV(filepath):
-    df = pd.read_csv(filepath)
-    return df
-
 def read__MultipleCSVs(folder_path, nfiles):
     allfiles = glob.glob(os.path.join(folder_path, "*.csv"))
-    df_list = []
-    #dtype={"lat": str,"long":str, "speed":str, "distance": str, "io_state":str, "recieved_at":str}
-    n = 0
-    for file in allfiles:
-        if (n< nfiles) :
-            print (file)
-            df = pd.read_csv(file, names=["lat", "long", "created_at", "updated_at", "device_id", "speed",
-                                                 "orientation", "distance", "received_at", "io_state", "availability",
-                                                 "blnk",
-                                                 'id'])
-            df = df.reset_index(drop=True)
-            if df.lat[0] == 'lat' :
-                df = df[1:]
-            df_list.append(df)
-            n+=1
+    return allfiles
 
+def read_SingleCSV(file):
+    print(file)
+    df = pd.read_csv(file, names=["lat", "long", "created_at", "updated_at", "device_id", "speed",
+                                  "orientation", "distance", "received_at", "io_state", "availability",
+                                  "blnk",
+                                  'id'])
+    df = df.reset_index(drop=True)
+    if df.lat[0] == 'lat':
+        df = df[1:]
+    return df
 
-    return df_list, allfiles
 
 def perform_PreFormating(df):
 
@@ -41,6 +32,7 @@ def perform_PreFormating(df):
 
     ##########################################################
     ## Capturing IO_State Data
+    df['io_state'] = df.io_state.apply(lambda x: x.zfill(8))
     df['dev_state'] = df.io_state.apply(lambda x: x[1])
 
     def fuelConvert(x):
@@ -56,23 +48,24 @@ def perform_PreFormating(df):
     
     ##########################################################
     ## Extracting relevant Columns and create new Dataframe
-    newDf = pd.DataFrame()
-    df[['datetime', 'lat','long','speed', 'distance', 'fuelVoltage', 'dev_state']] = df[['received_at','lat','long',
+    df2 = pd.DataFrame()
+    df2[['datetime', 'lat','long','speed', 'distance', 'fuelVoltage', 'dev_state']] = df[['received_at','lat','long',
                                                                              'speed', 'distance', 'FuelVoltage', 'dev_state']]
 
     ###########################################################
     ## Extracting and Sorting Datetime
-    df = df.dropna(subset= ['datetime'])
-    df.datetime = df.datetime.apply(lambda x: datetime.datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S"))
-    df = df.sort_values(['datetime'], ascending=True)
+    df2 = df2.dropna(subset= ['datetime'])
+    df2.datetime = df2.datetime.apply(lambda x: datetime.datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S"))
+    df2 = df2.sort_values(['datetime'], ascending=True)
 
     ##########################################################
     ### Reformatting Speed, Distance, Fuelvoltage Data to 'float' type
-    df.speed = df.speed.apply(lambda x: typecast(x))
-    df.distance = df.distance.apply(lambda x: typecast(x))
-    df.fuelVoltage = df.fuelVoltage.apply(lambda x: typecast(x))
-    
-    return df
+    df2.speed = df2.speed.apply(lambda x: typecast(x))
+    df2.distance = df2.distance.apply(lambda x: typecast(x))
+    df2.fuelVoltage = df2.fuelVoltage.apply(lambda x: typecast(x))
+
+    df2 = resetIndex(df2)
+    return df2
 
 def typecast(x):
     try: 
@@ -84,10 +77,17 @@ def perform_postFormating(df):
 
     ###########################################################
     ## Removing Device_State OFF Data
-    print (len(df))
+    #print (len(df))
+    print (df.datetime[0])
     df['dev_state'] = df['dev_state'].apply(lambda x: int(x))
     newDf = df[df['dev_state'] == 1]
+
+    if len(newDf)==0:
+        print("ERROR!!! No Device-ONSTATE data available")
+        return 0,0
+
     print (len(newDf))
+    print (df.datetime[0])
     
     ###########################################################
     ## Calling Outliar function
@@ -95,7 +95,9 @@ def perform_postFormating(df):
     #print("Enter Fuel Upper Limit Cutoff : ");
     newDf = removeOutliar(newDf)
    # print(newDf.fuelVoltage.max())
+    newDf = resetIndex(newDf.copy())
     print (len(newDf))
+    print (newDf.datetime[0])
     
     ###########################################################
     ### Calling Normalisation Function.
@@ -107,7 +109,7 @@ def perform_postFormating(df):
     newDf2 = newDf[newDf.fuelVoltage > 0.01*(newDf.fuelVoltage.max() - newDf.fuelVoltage.min())]
     
     newDf2 = resetIndex(newDf2.copy())
-    print (len(newDf2))
+    print ("LenPostFormating: ", len(newDf2))
     
     return newDf2, df
 
@@ -122,6 +124,7 @@ def removeOutliar(df):
     df = df[abs(df.fuelVoltage - df.fuelVoltage.mean()) < 2 * df.fuelVoltage.std()]
     df = resetIndex(df)
     print (len(df))
+    print (df.datetime[0])
 
     ## Removing Datetime Outliar
     timeDiff = df.datetime.shift(-1) - df.datetime  ## Calculating consecutive datetime differences between indexs
@@ -132,7 +135,7 @@ def removeOutliar(df):
         refIndex = lastIndex = timeJumpIndex[0]
 
         for timeIndex in timeJumpIndex:
-            if (timeIndex - refIndex) <= 5000:
+            if (timeIndex - refIndex) <= 4000:
                 lastIndex = timeIndex
             else:
                 break
@@ -140,6 +143,7 @@ def removeOutliar(df):
         lastIndex = -1
     df = df[(lastIndex +1):]
     print (len(df))
+    print (df.datetime[lastIndex +1])
     return df
 
 def resetIndex(df):
