@@ -2,6 +2,8 @@ import DataRead_and_PreClean as dr
 import DataCleaning_and_Prediction as dc
 import matplotlib.pyplot as plt
 import pandas as pd
+import traceback
+from scipy import signal
 
 ######################################################
 ### Function to plot Data profile in terms of fuelvoltage, Distance over time
@@ -139,9 +141,9 @@ def Gen_FuelMaxMin(df):
     fmax = dff.fuelVoltage.max()
     fmin = dff.fuelVoltage.min()
 
-    df_clean = dc.Clean_NoiseData(dff, 6, fmax, fmin, 0)
+    #df_clean = dc.Clean_NoiseData(dff, fmax, fmin, 0)
 
-    return df_clean.fuelVoltage.max(), df_clean.fuelVoltage.min()
+    return fmax, fmin
 
 def avg_NeigbourDistance(dff):
     dd = dff.fuelVoltage.shift(-1) - dff.fuelVoltage
@@ -175,7 +177,7 @@ fuelMax = 100
 fuelMin = 0
 
 
-filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=35)
+filesname = dr.read__MultipleCSVs(folder_path= folderpath, nfiles=45)
 ctr = 0
 error_log = pd.DataFrame()
 distDF = pd.DataFrame(columns=['median','2*Medev2', '2*Meddev','2*std','MaxMin','MaxMin0'])
@@ -196,12 +198,29 @@ for file in filesname:
         print("Dataset_" + str(ctr + 1) + " Postformatting Done")
 
         neb_dist, distrow = avg_NeigbourDistance(dff)
+
         distDF.loc[ctr] = distrow
 
-        # Dmax = dff.distance.max()
-        # df_clean = dc.Clean_NoiseData(dff, fuelMax, fuelMin, neb_dist)
-        # print("Dataset_" + str(ctr + 1) + " Data Cleaning Done")
-        #
+
+        ######################################################################
+        #### Generate Smooth Equivalent Curve
+        smooth_df = dc.generate_SmoothCurve(dff)
+
+
+
+        #Dmax = dff.distance.max()
+        df_clean = dc.Clean_NoiseData(dff, fuelMax, fuelMin, neb_dist)
+        print("Dataset_" + str(ctr + 1) + " Data Cleaning Done")
+
+        fig, axi = plt.subplots(4,1)
+        axi[0].plot(dff.index, dff.fuelVoltage,'g.', markersize =1)
+        axi[1].plot(smooth_df.index, smooth_df.SmoothVoltage, 'r.', markersize=1)
+        axi[2].plot(df_clean.index, df_clean.fuelVoltage, 'b.', markersize=1)
+        axi[3].plot(smooth_df.index, smooth_df.SmoothVoltage2, 'r.', markersize = 1)
+        axi[3].set_ylim(0.9 * dff.fuelVoltage.min(), 1.1 * dff.fuelVoltage.max())
+        plt.savefig(build_savePath + '_R1.png')
+        #plt.show()
+        plt.close()
         # plt.plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=1)
         #
         # plt.savefig(build_savePath + '_R1.png')
@@ -233,10 +252,6 @@ for file in filesname:
         # refuel_df = dc.generate_ReFuelTable(df_clean, ref_pts= refpts, fuelMax=fuelMax, fuelMin=fuelMin)
         #
         # ######################################################################
-        # #### Generate Smooth Equivalent Curve
-        # smooth_df = dc.generate_SmoothCurve(df_clean)
-        #
-        # ######################################################################
         # ##### Finding Refueling distance, or avg distance vehicle can travel from current fuel Level
         # curr_fuelVoltage = 0.25*(fuelMax - fuelMin) + fuelMin
         # refuel_Distance = dc.findAvg_RefuelDistance(df_clean, curr_fuelVoltage,fuelMax, fuelMin)
@@ -251,11 +266,10 @@ for file in filesname:
         ctr+=1
         #print(result_df)
         #print(refuel_df)
-    except Exception as e:
+    except Exception:
         filename.append(build_savePath)
-        errLog.append(str(e))
-        print (e)
-        print ("HUUUUGE Errorrs")
+        errLog.append(str(traceback.format_exc()))
+        print(traceback.format_exc())
         ctr+=1
 error_log['Filename'] = pd.Series(filename)
 error_log['error_Log'] = pd.Series(errLog)

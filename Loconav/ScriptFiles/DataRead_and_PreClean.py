@@ -77,27 +77,27 @@ def perform_postFormating(df):
 
     ###########################################################
     ## Removing Device_State OFF Data
-    #print (len(df))
-    print (df.datetime[0])
+    print (len(df))
+   # print (df.datetime[0])
     df['dev_state'] = df['dev_state'].apply(lambda x: int(x))
-    newDf = df[df['dev_state'] == 1]
+    newDff = df[df['dev_state'] == 1].reset_index(drop = True)
 
-    if len(newDf)==0:
+    if len(newDff)==0:
         print("ERROR!!! No Device-ONSTATE data available")
         return 0,0
 
-    print (len(newDf))
-    print (df.datetime[0])
+    print (len(newDff))
+    #print (df.datetime[0])
     
     ###########################################################
     ## Calling Outliar function
 
     #print("Enter Fuel Upper Limit Cutoff : ");
-    newDf = removeOutliar(newDf)
+    newDf = removeOutliar(newDff)
    # print(newDf.fuelVoltage.max())
     newDf = resetIndex(newDf.copy())
     print (len(newDf))
-    print (newDf.datetime[0])
+    #print (newDf.datetime[0])
     
     ###########################################################
     ### Calling Normalisation Function.
@@ -111,7 +111,7 @@ def perform_postFormating(df):
     newDf2 = resetIndex(newDf2.copy())
     print ("LenPostFormating: ", len(newDf2))
     
-    return newDf2, df
+    return newDf2, newDff
 
 
 
@@ -121,10 +121,10 @@ def removeOutliar(df):
     df = df[df['distance'] >= 0]
     print (len(df))
     ## Removing Y-axis outliar using 'mean -3SD'
-    df = df[abs(df.fuelVoltage - df.fuelVoltage.mean()) < 2 * df.fuelVoltage.std()]
+    df = df[abs(df.fuelVoltage - df.fuelVoltage.median()) <= 2 * df.fuelVoltage.std()]
     df = resetIndex(df)
     print (len(df))
-    print (df.datetime[0])
+    #print (df.datetime[0])
 
     ## Removing Datetime Outliar
     timeDiff = df.datetime.shift(-1) - df.datetime  ## Calculating consecutive datetime differences between indexs
@@ -132,7 +132,8 @@ def removeOutliar(df):
         ## Building list of Datetimes which are in diff greator than '2 Days' with immediate next datapoint.
         ## Then extracting index of last datetime of these jargon (sorted) dates
         timeJumpIndex = timeDiff[timeDiff > pd.Timedelta('2 day')].index
-        refIndex = lastIndex = timeJumpIndex[0]
+        print(timeJumpIndex)
+        refIndex = lastIndex = 0
 
         for timeIndex in timeJumpIndex:
             if (timeIndex - refIndex) <= 4000:
@@ -143,7 +144,7 @@ def removeOutliar(df):
         lastIndex = -1
     df = df[(lastIndex +1):]
     print (len(df))
-    print (df.datetime[lastIndex +1])
+    #print (df.datetime[lastIndex +1])
     return df
 
 def resetIndex(df):

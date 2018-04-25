@@ -1,5 +1,9 @@
 import numpy as np
 import pandas as pd
+import scipy as sp
+from scipy import signal
+from scipy.fftpack import fft
+from scipy.signal import butter, lfilter
 
 desired_width = 360
 pd.set_option('display.width', desired_width)
@@ -27,10 +31,9 @@ def Clean_NoiseData(dff, fuelMax, fuelMin, nds):
                (dforward.d7 <= 7 * Nds) & (dbackward.d7 <= 7 * Nds) & (dforward.d8 <= 8 * Nds) & (dbackward.d8 <= 8 * Nds)]
     dff2 = dff2.reset_index(drop=True)
 
-    dfClean = dff2[['datetime','lat', 'long','speed','distance','fuelVoltage']]
-    dfClean['fuelVoltage_Percent'] = dfClean.fuelVoltage.apply(lambda x: round((100*x/(fuelMax - fuelMin)),2))
-
-    return dfClean
+    dff2.loc[:,('fuelVoltage_Percent')] = dff2.fuelVoltage.apply(lambda x: round((100*(x-fuelMin)/(fuelMax - fuelMin)),2))
+    #print(dff2.head())
+    return dff2
 
 
 def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
@@ -334,12 +337,12 @@ def generate_ReFuelTable(df_cleaned, ref_pts, fuelMax, fuelMin):
 ####################################################################
 #### Function to generate Smooth Curve
 #####################################################################
-def generate_SmoothCurve(df_clean):
-    from scipy.fftpack import fft
-    from scipy.signal import butter, lfilter, freqz
+def generate_SmoothCurve(dff):
+    dff = dff.copy()
 
-    normdata = df_clean.fuelVoltage / df_clean.fuelVoltage.max()
-    yvolt = fft(normdata)
+
+    normdata = dff.fuelVoltage / dff.fuelVoltage.max()
+      # add noise to the signal
 
     def butter_lowpass_filter(data, cutoff, fs, order=5, ftype=False):
         nyq = 0.5 * fs
@@ -352,9 +355,15 @@ def generate_SmoothCurve(df_clean):
     order = 5  # Order of Filter
     cutoff = 10  # Filter Cut-off Frequency
 
-    # Calling Butterworth filter
-    y_smooth = df_clean.fuelVoltage.max() * (butter_lowpass_filter(normdata, cutoff, fs, order, ftype=False))
-    df_clean['SmoothVoltage'] = y_smooth
-    smooth_Df = df_clean[['datetime','fuelVoltage', 'SmoothVoltage']]
+    ### Calling Median Filter
+    y_smooth = sp.signal.medfilt(dff.fuelVoltage, 99)
+    dff['SmoothVoltage'] = y_smooth
 
-    return smooth_Df
+    # Calling Butterworth filter
+    y_smooth2 = dff.fuelVoltage.max() * (butter_lowpass_filter(normdata, cutoff, fs, order, ftype=False))
+    dff['SmoothVoltage2'] = y_smooth2
+    #smooth_Df = df_clean[['datetime','fuelVoltage', 'SmoothVoltage']]
+    dff = dff[abs(dff.SmoothVoltage - dff.SmoothVoltage.median()) <= 2*dff.SmoothVoltage.std()]
+    dff = dff.reset_index(drop=True)
+
+    return dff
