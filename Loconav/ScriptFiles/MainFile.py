@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import traceback
 from scipy import signal
-
+import scipy as sp
+import ctypes
 ######################################################
 ### Function to plot Data profile in terms of fuelvoltage, Distance over time
 def plotData_profiles(df):
@@ -53,15 +54,15 @@ def plot_theftpts(cleanedDf, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[]
     plt.show()
 
 
-def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[], savepth= " "):
-    plt.rcParams['figure.figsize'] = [16, 12]
+def plot_Results(df, smooth_df, result_df, theftpts=[], refPts=[], xlim=[], ylim1=[], ylim2=[], savepth=" "):
+    plt.rcParams['figure.figsize'] = [16, 16]
     fig, axi = plt.subplots(4, 1)
     axi[0].plot(df.datetime, df.fuelVoltage, 'g.', markersize=1, linewidth=1);
     # plt.plot(df.datetime, df.distance, 'b-', markersize=1, linewidth=1);
     axi[0].set_title('Original FuelData vs Time')
     axi[0].set_xlabel('time')
 
-    axi[1].plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=2, linewidth=1)
+    axi[1].plot(smooth_df.index, smooth_df.fuelVoltage, 'g.', markersize=2, linewidth=1)
     axi[1].set_xlabel('time index')
     # Make the y-axis label, ticks and tick labels match the line color.
     axi[1].set_ylabel('FuelVoltage', color='b')
@@ -69,10 +70,10 @@ def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xli
     if len(ylim1) != 0:
         axi[1].set_ylim(ylim1)
     else:
-        axi[1].set_ylim(df_clean.fuelVoltage.min(), 1.05*df_clean.fuelVoltage.max())
+        axi[1].set_ylim(smooth_df.fuelVoltage.min(), 1.05 * smooth_df.fuelVoltage.max())
 
     ax2 = axi[1].twinx()
-    ax2.plot(df_clean.index, df_clean.distance, 'b-', markersize=2, linewidth=1)
+    ax2.plot(smooth_df.index, smooth_df.distance, 'b-', markersize=2, linewidth=1)
     ax2.set_ylabel('Distance', color='b')
     if len(ylim2) != 0:
         ax2.set_ylim(ylim2)
@@ -83,7 +84,7 @@ def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xli
     for pt in refPts:
         axi[1].axvline(pt, color='Red')
 
-    axi[2].plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=2, linewidth=1)
+    axi[2].plot(smooth_df.index, smooth_df.fuelVoltage, 'g.', markersize=2, linewidth=1)
     axi[2].set_xlabel('time index')
     # Make the y-axis label, ticks and tick labels match the line color.
     axi[2].set_ylabel('FuelVoltage', color='b')
@@ -91,10 +92,10 @@ def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xli
     if len(ylim1) != 0:
         axi[2].set_ylim(ylim1)
     else:
-        axi[2].set_ylim(df_clean.fuelVoltage.min(), 1.05 * df_clean.fuelVoltage.max())
+        axi[2].set_ylim(smooth_df.fuelVoltage.min(), 1.05 * smooth_df.fuelVoltage.max())
 
     ax2 = axi[2].twinx()
-    ax2.plot(df_clean.index, df_clean.distance, 'b-', markersize=2, linewidth=1)
+    ax2.plot(smooth_df.index, smooth_df.distance, 'b-', markersize=2, linewidth=1)
     ax2.set_ylabel('Distance', color='b')
     if len(ylim2) != 0:
         axi[2].set_ylim(ylim2)
@@ -107,7 +108,7 @@ def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xli
         plt.axvline(pt, color='black')
 
 
-    axi[3].plot(smooth_df.datetime, smooth_df.SmoothVoltage, 'g-', markersize=2, linewidth=1);
+    axi[3].plot(smooth_df.datetime, smooth_df.fuelVoltage, 'g-', markersize=2, linewidth=1);
     axi[3].set_title('Smoothed FuelVoltage Level')
 
     axi[3].set_xlabel('time index')
@@ -116,7 +117,7 @@ def plot_Results(df, df_clean, result_df, smooth_df, theftpts=[], refPts=[], xli
     if len(ylim1) != 0:
         axi[3].set_ylim(ylim1)
     else:
-        axi[3].set_ylim(df_clean.fuelVoltage.min(), 1.05*df_clean.fuelVoltage.max())
+        axi[3].set_ylim(smooth_df.fuelVoltage.min(), 1.05 * smooth_df.fuelVoltage.max())
 
 
     fig.tight_layout()
@@ -138,9 +139,10 @@ def Gen_FuelMaxMin(df):
     df = dr.perform_PreFormating(df)
     dff, dff2 = dr.perform_postFormating(df)
 
-    fmax = dff.fuelVoltage.max()
-    fmin = dff.fuelVoltage.min()
 
+    y_smooth = sp.signal.medfilt(dff.fuelVoltage, 99)
+    fmax = max(y_smooth)
+    fmin = min(y_smooth)
     #df_clean = dc.Clean_NoiseData(dff, fmax, fmin, 0)
 
     return fmax, fmin
@@ -165,7 +167,7 @@ def avg_NeigbourDistance(dff):
 ######################################################################
 #### Main Code Starts
 
-folderpath = r"H:\Analytics\FuelAnalysis\test"
+folderpath = r"H:\Analytics\FuelAnalysis\test\nf"
 savePath = r"H:\Analytics\FuelAnalysis\results"
 filepath = r""
 
@@ -206,18 +208,15 @@ for file in filesname:
         #### Generate Smooth Equivalent Curve
         smooth_df = dc.generate_SmoothCurve(dff)
 
-
-
         #Dmax = dff.distance.max()
-        df_clean = dc.Clean_NoiseData(dff, fuelMax, fuelMin, neb_dist)
+        #df_clean = dc.Clean_NoiseData(dff, fuelMax, fuelMin, neb_dist)
         print("Dataset_" + str(ctr + 1) + " Data Cleaning Done")
 
-        fig, axi = plt.subplots(4,1)
+        fig, axi = plt.subplots(2,1)
         axi[0].plot(dff.index, dff.fuelVoltage,'g.', markersize =1)
-        axi[1].plot(smooth_df.index, smooth_df.SmoothVoltage, 'r.', markersize=1)
-        axi[2].plot(df_clean.index, df_clean.fuelVoltage, 'b.', markersize=1)
-        axi[3].plot(smooth_df.index, smooth_df.SmoothVoltage2, 'r.', markersize = 1)
-        axi[3].set_ylim(0.9 * dff.fuelVoltage.min(), 1.1 * dff.fuelVoltage.max())
+        axi[1].plot(smooth_df.index, smooth_df.fuelVoltage, 'r.', markersize=1)
+        #axi[2].plot(df_clean.index, df_clean.fuelVoltage, 'b.', markersize=1)
+
         plt.savefig(build_savePath + '_R1.png')
         #plt.show()
         plt.close()
@@ -226,48 +225,55 @@ for file in filesname:
         # plt.savefig(build_savePath + '_R1.png')
         # plt.close()
 
-        # theft_pts, refpts = dc.jump_point(df_clean, 0.01, fuelMax, 0)
-        # print("Dataset_" + str(ctr + 1) + " Theft points Indentified")
+        theft_pts, refpts = dc.jump_point(smooth_df, 0.01, fuelMax, fuelMin, 0)
+        print("Dataset_" + str(ctr + 1) + " Theft points Indentified")
         #
-        # #plotData_profiles(df)
-        # xlim = []
-        # #plot_theftpts(df_clean,theftpts=[], refPts=refpts, xlim = xlim)
+        xlim = []
+        #plot_theftpts(smooth_df,theftpts=[], refPts=refpts, xlim = xlim)
+        #plot_theftpts(smooth_df,theftpts=theft_pts, refPts=[], xlim = xlim)
+        if len(refpts) ==0:
+            raise Exception("Zero Refuel Points. This datasets donot supports Refuel Points Anaylsis")
+
+        if len(theft_pts) ==0:
+            raise Exception("Zero Theft Points. This datasets donot supports Theft Points Anaylsis")
+
+
+        ######################################################################
+        #### Generate Refuel Table
+        refuel_df = dc.generate_ReFuelTable(smooth_df, ref_pts= refpts, fuelMax=fuelMax, fuelMin=fuelMin)
         #
+        #################################################################
+        #### Find Avg Consumption Rate Range
+        max_DecayRate = dc.findMax_decayRate(smooth_df, fuelMax, fuelMin)
+        print("Dataset_" + str(ctr + 1) + " Max Decay Rate evaluated")
+        print(max_DecayRate)
         #
-        # #################################################################
-        # #### Find Avg Consumption Rate Range
-        # max_DecayRate = dc.findMax_decayRate(df_clean, fuelMax, fuelMin)
-        # print("Dataset_" + str(ctr + 1) + " Max Decay Rate evaluated")
-        # print(max_DecayRate)
-        #
-        # #####################################################################
-        # ### Generating results table for theft points
-        # result_df = dc.generate_PredictTable(df_clean, theft_pts, max_DecayRate, fuelMax, fuelMin)
-        #
+        #####################################################################
+        ### Generating results table for theft points
+        theft_df = dc.generate_TheftTable(smooth_df, theft_pts, max_DecayRate, fuelMax, fuelMin)
+
         # build_savePath = savePath + r"\result_dataset_" + filesname[ctr].replace(folderpath,"").replace('\\', "")
         # #result_df.to_csv(build_savePath)
-        #
-        # ######################################################################
-        # #### Generate Refuel Table
-        # refuel_df = dc.generate_ReFuelTable(df_clean, ref_pts= refpts, fuelMax=fuelMax, fuelMin=fuelMin)
-        #
-        # ######################################################################
-        # ##### Finding Refueling distance, or avg distance vehicle can travel from current fuel Level
-        # curr_fuelVoltage = 0.25*(fuelMax - fuelMin) + fuelMin
-        # refuel_Distance = dc.findAvg_RefuelDistance(df_clean, curr_fuelVoltage,fuelMax, fuelMin)
-        # print ("Avg. Distance that can be travelled Before Refueling = ", round(refuel_Distance,2), " Kms")
-        #
-        # #predDF = dc.predit_MissingData(dff2, df_clean)
-        # ####Plotting complete results
-        #
-        # plot_Results(dff,df_clean,result_df, smooth_df, theftpts= theft_pts, refPts=refpts, xlim = xlim, savepth = build_savePath)
-        #
+
+        ######################################################################
+        ##### Finding Refueling distance, or avg distance vehicle can travel from current fuel Level
+        curr_fuelVoltage = 0.25*(fuelMax - fuelMin) + fuelMin
+        refuel_Distance = dc.findAvg_RefuelDistance(smooth_df, curr_fuelVoltage,fuelMax, fuelMin)
+        print ("Avg. Distance that can be travelled Before Refueling = ", round(refuel_Distance,2), " Kms")
+
+
+        ####Plotting complete results
+
+        plot_Results(dff,smooth_df, theft_df, theftpts= theft_pts, refPts=refuel_df.refuel_index, xlim = xlim, savepth = build_savePath)
+
 
         ctr+=1
         #print(result_df)
         #print(refuel_df)
-    except Exception:
+    except Exception as err:
         filename.append(build_savePath)
+
+        ctypes.windll.user32.MessageBoxW(0, str(err), "Error Exception", 1)
         errLog.append(str(traceback.format_exc()))
         print(traceback.format_exc())
         ctr+=1

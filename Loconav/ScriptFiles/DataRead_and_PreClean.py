@@ -83,10 +83,9 @@ def perform_postFormating(df):
     newDff = df[df['dev_state'] == 1].reset_index(drop = True)
 
     if len(newDff)==0:
-        print("ERROR!!! No Device-ONSTATE data available")
-        return 0,0
+        raise ValueError("ERROR!!! No Device-ONSTATE data available")
 
-    print (len(newDff))
+   # print (len(newDff))
     #print (df.datetime[0])
     
     ###########################################################
@@ -94,6 +93,9 @@ def perform_postFormating(df):
 
     #print("Enter Fuel Upper Limit Cutoff : ");
     newDf = removeOutliar(newDff)
+    if len(newDf) <20:
+        raise Exception("Empty Dataset passed. No theft analysis possible over it.")
+
    # print(newDf.fuelVoltage.max())
     newDf = resetIndex(newDf.copy())
     print (len(newDf))
@@ -119,11 +121,11 @@ def removeOutliar(df):
 
     df = df.sort_values(['datetime'], ascending=True)  ## Sorting Datetime
     df = df[df['distance'] >= 0]
-    print (len(df))
+    #print (len(df))
     ## Removing Y-axis outliar using 'mean -3SD'
     df = df[abs(df.fuelVoltage - df.fuelVoltage.median()) <= 2 * df.fuelVoltage.std()]
     df = resetIndex(df)
-    print (len(df))
+    #print (len(df))
     #print (df.datetime[0])
 
     ## Removing Datetime Outliar
@@ -132,7 +134,7 @@ def removeOutliar(df):
         ## Building list of Datetimes which are in diff greator than '2 Days' with immediate next datapoint.
         ## Then extracting index of last datetime of these jargon (sorted) dates
         timeJumpIndex = timeDiff[timeDiff > pd.Timedelta('2 day')].index
-        print(timeJumpIndex)
+        #print(timeJumpIndex)
         refIndex = lastIndex = 0
 
         for timeIndex in timeJumpIndex:
@@ -143,7 +145,7 @@ def removeOutliar(df):
     except:
         lastIndex = -1
     df = df[(lastIndex +1):]
-    print (len(df))
+    #print (len(df))
     #print (df.datetime[lastIndex +1])
     return df
 

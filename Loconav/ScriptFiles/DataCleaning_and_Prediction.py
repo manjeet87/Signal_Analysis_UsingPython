@@ -37,6 +37,10 @@ def Clean_NoiseData(dff, fuelMax, fuelMin, nds):
 
 
 def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
+
+    if len(dff)<=200:
+        raise Exception("Length of DataSet is too small for any theft & refuel point analysis.. Plz Enter valid Dataset")
+
     x = np.array(dff.index)
     y = np.array(dff.fuelVoltage)
     d = np.array(dff.distance)
@@ -44,15 +48,11 @@ def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
     #######################################################################
     ## No. of Neighbourhood pts, 'n', dependent on sampling Rate of IoT device
     ## Criteria Set = Avg No. of points inside 10Km window will be considered
-    if len(dff)==0:
-        print ("ERROR!! EMPTY DATASET PaSSED. This may be possible due to heavy noise in the fuelVoltage data. "
-               "Dataset with huge noise cannot be used to find possible theft points")
-        return list([])
 
-    n = int(10000/(dff.distance.max()/len(dff)))
-    print ('Points per 10Km: ',n)
+    n = int(8000/(dff.distance.max()/len(dff)))
     n = max(n,10)
-
+    n = min(n,40)
+    print('Points per 10Km: ', n)
 
     level = level*(fuelMax - fuelMin)
     if neb_dist:
@@ -63,7 +63,6 @@ def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
     ctr = 0
     i = 0
 
-    dd2 = [y[1] - y[0]]
     for i in range(1, len(x)):
         try:
             #             d1 =abs(y[i+1] - y[i])
@@ -75,7 +74,6 @@ def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
         except:
             pass
             #print("**")
-        # dd1.append(d1)
         # dd2.append(d2)
         # if (d1 >= 0.05) & (d2 >= 0.05)&(d3 >= 0.05)&(d4 >= 0.05)&(d5 >= 0.05)&(d5 >= 0.05):
 
@@ -106,59 +104,23 @@ def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
                 # dd2.append(0)
     # dff['dd1'] = pd.Series(dd1)
     # dff['dd2'] = pd.Series(dd2)
+    refpts = pd.Series(refpts)
+    shift = abs(refpts.shift(-1) - refpts)
+
+
     print(len(theft_pts))
     return theft_pts, refpts
 
-
-def predit_MissingData(df_old, df_cleaned):
-    ### Combining all data on common axiz
-    ### After removing noise and OFF_State data, replacing them with last known predicted value.
-
-    j = 0  ## Counter for cleaned Data
-    i = 0  ## Counter for Old_df
-
-    predict_Data = []
-    lastdata_value = df_old.loc[0, 'fuelVoltage']
-
-    while i < (len(df_old)):
-
-        if j < len(df_cleaned):
-
-            if (df_cleaned.loc[j, 'datetime'] > df_old.loc[i, 'datetime']):
-                predict_Data.append(lastdata_value)
-                #print ('i = ',i)
-
-            elif (df_cleaned.loc[j, 'datetime'] <= df_old.loc[i, 'datetime']):
-                lastdata_value = df_old.loc[i, 'fuelVoltage']
-                j += 1
-                predict_Data.append(lastdata_value)
-                if j%10000 ==0:
-                    print (j)
-                # print ('*j = ',j)
-
-        else:
-            predict_Data.append(df_old.loc[i, 'fuelVoltage'])
-            # print (i)
-
-        i += 1
-    df_old['predictFuelVolt'] = pd.Series(predict_Data)
-
-    return df_old
-
-#########################################################################
-#### Function to find average to maximum fuel Consumption Rate,
-#### To be used to validate theft points
-#########################################################################
-def findMax_decayRate(cleanDf, fuelMax, fuelMin):
+def avg_decayRate(cleanDf,fuelMax, fuelMin):
     i = 0
-    df_window = (fuelMax - fuelMin) / 500
+    df_window = (fuelMax - fuelMin) / 10
     avgDT = []
     indexlst = []
 
     while i < len(cleanDf):
         df = 0
-        dfRef = cleanDf.fuelVoltage[i]      ### Reference Fuel Voltage
-        dsRef = cleanDf.distance[i]         ### Reference Distance position
+        dfRef = cleanDf.fuelVoltage[i]  ### Reference Fuel Voltage
+        dsRef = cleanDf.distance[i]  ### Reference Distance position
 
         ### The loop windows work till the fuelVoltage drop reaches the desired drop level i.e. 'df_window'
         ### After that, it calculates the distance travelled with that consumption of fuel
@@ -182,15 +144,7 @@ def findMax_decayRate(cleanDf, fuelMax, fuelMin):
                 avgDT.append(avg)
                 indexlst.append(cleanDf.index[i])
 
-    med = pd.Series(avgDT).median()
-    mean = pd.Series(avgDT).mean()
-    avg = pd.Series(avgDT)
-    ##################################################################
-    ### Max Allowable decayRate = Median  +  3* MedianDeviation
-    ##################################################################
-    max_decayRate = 1000*(avg.median() + 3 * abs(avg - avg.median()).median())
 
-    return max_decayRate
 
 #########################################################################
 #### Function to find longterm average fuel Consumption Rate,
@@ -284,8 +238,10 @@ def findMax_decayRate(cleanDf, fuelMax, fuelMin):
 
     return max_decayRate
 
-
-def generate_PredictTable(df_cleaned, theft_pts, max_DecayRate, fuelMax, fuelMin):
+################################################################################
+#### Function to generate table for probable theft events with position and time
+#################################################################################
+def generate_TheftTable(df_cleaned, theft_pts, max_DecayRate, fuelMax, fuelMin):
     result_df = pd.DataFrame()
     result_df['theft_index'] = [df_cleaned.index[i] for i in theft_pts]
     result_df['lat'] = [df_cleaned.lat[i] for i in theft_pts]
@@ -311,19 +267,56 @@ def generate_PredictTable(df_cleaned, theft_pts, max_DecayRate, fuelMax, fuelMin
     print (len(result_df))
     return result_df
 
+###############################################################################
+### Function to check for invalid Refuel Points and remove them
+###############################################################################
+def check_refpts_dropList(refdt):
+
+    refdt['shift'] = abs(refdt['refuel_index'].shift(-1) - refdt['refuel_index'])
+    #refdt['dist'] = pd.Series(df_clean2.distance[refpts].reset_index(drop=True))
+    i = 0
+    dropIndexList = []
+    while i in range(len(refdt)):
+
+        if refdt.loc[i, 'shift'] <= 5:
+            i += 1
+            while (refdt.loc[i, 'shift'] <= 5):
+                dropIndexList.append(refdt.loc[i,'refuel_index'])
+                i += 1
+        i += 1
+
+    refdt['drop'] = refdt.refuel_index.apply(lambda x: 'Y' if (x in dropIndexList) else 'N')
+    #print (refdt)
+    refdt = refdt[refdt['drop'] == 'N'].reset_index(drop= True)
+    return refdt, dropIndexList
+
 
 def generate_ReFuelTable(df_cleaned, ref_pts, fuelMax, fuelMin):
+
     refuel_df = pd.DataFrame()
-    refuel_df['ReFuel_index'] = [df_cleaned.index[i] for i in ref_pts]
+    refuel_df['refuel_index'] = [df_cleaned.index[i] for i in ref_pts]
     refuel_df['lat'] = [df_cleaned.lat[i] for i in ref_pts]
     refuel_df['long'] = [df_cleaned.long[i] for i in ref_pts]
-    refuel_df['ReFuel_time'] = [df_cleaned.datetime[i] for i in ref_pts]
+    refuel_df['refuel_time'] = [df_cleaned.datetime[i] for i in ref_pts]
 
-    refuel_df['fuel_VoltageJump'] = [(df_cleaned.fuelVoltage[i+1] - df_cleaned.fuelVoltage[i]) for i in ref_pts]
-    refuel_df['fuel_VoltageJump(%)'] = [100 * (df_cleaned.fuelVoltage[i+1] - df_cleaned.fuelVoltage[i]) / (fuelMax - fuelMin) for i in ref_pts]
+    refuel_df, dropIndex = check_refpts_dropList(refuel_df.copy())
+    df_cleaned = df_cleaned.drop(dropIndex)
+
+
+    for i,j in zip(refuel_df.refuel_index, refuel_df.index):
+        success = 0
+        pos = 1
+        while(success ==0):
+            try:
+                refuel_df.loc[j,'fuel_VoltageJump'] = (df_cleaned.fuelVoltage[i+pos] - df_cleaned.fuelVoltage[i])
+                refuel_df.loc[j,'fuel_VoltageJump(%)'] = 100 * (df_cleaned.fuelVoltage[i+pos] - df_cleaned.fuelVoltage[i]) / (fuelMax - fuelMin)
+                refuel_df.loc[j,'dist_jump(KM)'] = (df_cleaned.distance[i + pos] - df_cleaned.distance[i]) * (.001)
+                refuel_df.loc[j,'time_jump'] = (df_cleaned.datetime[i + pos] - df_cleaned.datetime[i])
+                success =1
+            except:
+                pos +=1
+
     refuel_df['fuel_VoltageJump(%)'] = refuel_df['fuel_VoltageJump(%)'].apply(lambda x: round(x,2))
-    refuel_df['dist_jump(KM)'] = [(df_cleaned.distance[i + 1] - df_cleaned.distance[i]) * (.001) for i in ref_pts]
-    refuel_df['time_jump'] = [(df_cleaned.datetime[i + 1] - df_cleaned.datetime[i]) for i in ref_pts]
 
     # result_df.to_csv(r"G:\Analytics\FuelAnalysis\results\reults.csv")
 
@@ -340,8 +333,8 @@ def generate_ReFuelTable(df_cleaned, ref_pts, fuelMax, fuelMin):
 def generate_SmoothCurve(dff):
     dff = dff.copy()
 
-
-    normdata = dff.fuelVoltage / dff.fuelVoltage.max()
+    fmax = dff.fuelVoltage.max()
+    normdata = dff.fuelVoltage / fmax
       # add noise to the signal
 
     def butter_lowpass_filter(data, cutoff, fs, order=5, ftype=False):
@@ -357,13 +350,13 @@ def generate_SmoothCurve(dff):
 
     ### Calling Median Filter
     y_smooth = sp.signal.medfilt(dff.fuelVoltage, 99)
-    dff['SmoothVoltage'] = y_smooth
+    dff['fuelVoltage'] = pd.Series(y_smooth)
 
     # Calling Butterworth filter
-    y_smooth2 = dff.fuelVoltage.max() * (butter_lowpass_filter(normdata, cutoff, fs, order, ftype=False))
+    y_smooth2 = fmax * (butter_lowpass_filter(normdata, cutoff, fs, order, ftype=False))
     dff['SmoothVoltage2'] = y_smooth2
     #smooth_Df = df_clean[['datetime','fuelVoltage', 'SmoothVoltage']]
-    dff = dff[abs(dff.SmoothVoltage - dff.SmoothVoltage.median()) <= 2*dff.SmoothVoltage.std()]
+    dff = dff[abs(dff.fuelVoltage - dff.fuelVoltage.median()) <= 2*dff.fuelVoltage.std()]
     dff = dff.reset_index(drop=True)
 
     return dff
