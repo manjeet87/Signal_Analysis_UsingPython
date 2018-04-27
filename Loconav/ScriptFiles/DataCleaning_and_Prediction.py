@@ -330,7 +330,7 @@ def generate_ReFuelTable(df_cleaned, ref_pts, fuelMax, fuelMin):
 ####################################################################
 #### Function to generate Smooth Curve
 #####################################################################
-def generate_SmoothCurve(dff):
+def generate_SmoothCurve(dff, fuelMax, fuelMin):
     dff = dff.copy()
 
     fmax = dff.fuelVoltage.max()
@@ -358,5 +358,6 @@ def generate_SmoothCurve(dff):
     #smooth_Df = df_clean[['datetime','fuelVoltage', 'SmoothVoltage']]
     dff = dff[abs(dff.fuelVoltage - dff.fuelVoltage.median()) <= 2*dff.fuelVoltage.std()]
     dff = dff.reset_index(drop=True)
+    dff.loc[:, ('fuelVoltage_Percent')] = dff.fuelVoltage.apply(lambda x: round((100 * (x - fuelMin) / (fuelMax - fuelMin)), 2))
 
     return dff
