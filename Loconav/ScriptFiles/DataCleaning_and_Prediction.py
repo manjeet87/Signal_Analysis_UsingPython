@@ -333,30 +333,30 @@ def generate_ReFuelTable(df_cleaned, ref_pts, fuelMax, fuelMin):
 def generate_SmoothCurve(dff, fuelMax, fuelMin):
     dff = dff.copy()
 
-    fmax = dff.fuelVoltage.max()
-    normdata = dff.fuelVoltage / fmax
-      # add noise to the signal
-
-    def butter_lowpass_filter(data, cutoff, fs, order=5, ftype=False):
-        nyq = 0.5 * fs
-        normal_cutoff = cutoff / nyq
-        b, a = butter(order, normal_cutoff, btype='low', analog=ftype)
-        y = lfilter(b, a, data)
-        return y
-
-    fs = 500  # Sampling Frequency
-    order = 5  # Order of Filter
-    cutoff = 10  # Filter Cut-off Frequency
+    #fmax = dff.fuelVoltage.max()
+    # normdata = dff.fuelVoltage / fmax
+    #   # add noise to the signal
+    #
+    # def butter_lowpass_filter(data, cutoff, fs, order=5, ftype=False):
+    #     nyq = 0.5 * fs
+    #     normal_cutoff = cutoff / nyq
+    #     b, a = butter(order, normal_cutoff, btype='low', analog=ftype)
+    #     y = lfilter(b, a, data)
+    #     return y
+    #
+    # fs = 500  # Sampling Frequency
+    # order = 5  # Order of Filter
+    # cutoff = 10  # Filter Cut-off Frequency
 
     ### Calling Median Filter
     y_smooth = sp.signal.medfilt(dff.fuelVoltage, 99)
     dff['fuelVoltage'] = pd.Series(y_smooth)
 
-    # Calling Butterworth filter
-    y_smooth2 = fmax * (butter_lowpass_filter(normdata, cutoff, fs, order, ftype=False))
-    dff['SmoothVoltage2'] = y_smooth2
+    # # Calling Butterworth filter
+    # y_smooth2 = fmax * (butter_lowpass_filter(normdata, cutoff, fs, order, ftype=False))
+    # dff['SmoothVoltage2'] = y_smooth2
     #smooth_Df = df_clean[['datetime','fuelVoltage', 'SmoothVoltage']]
-    dff = dff[abs(dff.fuelVoltage - dff.fuelVoltage.median()) <= 2*dff.fuelVoltage.std()]
+    dff = dff[abs(dff.fuelVoltage - dff.fuelVoltage.median()) <= 2.4*dff.fuelVoltage.std()]
     dff = dff.reset_index(drop=True)
     dff.loc[:, ('fuelVoltage_Percent')] = dff.fuelVoltage.apply(lambda x: round((100 * (x - fuelMin) / (fuelMax - fuelMin)), 2))
 
