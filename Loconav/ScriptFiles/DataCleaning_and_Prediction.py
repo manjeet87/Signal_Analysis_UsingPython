@@ -36,6 +36,38 @@ def Clean_NoiseData(dff, fuelMax, fuelMin, nds):
     return dff2
 
 
+def avg_NeigbourDistance(dff, fuelMax, fuelMin):
+    data_type = ''
+    dd = dff.fuelVoltage - dff.fuelVoltage.shift(-1)
+    dd = dd.dropna()
+    dd_zero = pd.Series(dd == 0).mean()
+    dd_pos = pd.Series(dd > 0).mean()
+    dd_minus = pd.Series(dd < 0).mean()
+    if dd_zero < 0.95:
+        if dd_pos >= 1.5 * dd_minus:
+            data_type = 'analog_pos_logic'
+        elif dd_minus >= 1.5 * dd_pos:
+            data_type = 'analog_neg_logic'
+        else:
+            data_type = 'vague_pattern'
+    elif dd_zero >= 0.97:
+        data_type = 'discrete'
+
+    dd2 = dd[abs(dd - dd.mean()) < 1.5 * dd.std()]
+    meddev = abs(dd2 - dd2.median()).median()
+    meddev2 = abs(dd2 - dd2.median()).mean()
+    #print(dd.median(), 2 * meddev, 2 * dd.std(), 0.01 * (fuelMax - fuelMin), 0.01 * (fuelMax - 0.05 * fuelMax))
+    distrow = [dd2.median(), 2 * meddev2, 2 * meddev, 2 * dd2.std(), 0.01 * (fuelMax - fuelMin),
+                       0.01 * (fuelMax - 0.05 * fuelMax)]
+    #print(dd)
+    #plt.hist(dd, bins=100)
+   # plt.axvline(dd.median(), color = 'black')
+    #plt.axvline(2*dd.std(), color = 'black')
+    #plt.semilogy()
+    neb_dist = 2 * meddev
+    return neb_dist, distrow, data_type
+
+
 def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
 
     if len(dff)<=200:
@@ -57,6 +89,19 @@ def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
     level = level*(fuelMax - fuelMin)
     if neb_dist:
         level = neb_dist
+
+    neb_dist2, distrow, data_type = avg_NeigbourDistance(dff, fuelMax, fuelMin)
+
+    if data_type == 'analog_pos_logic' :
+        logic = 1
+    elif data_type == 'analog_neg_logic' :
+        logic = -1
+    elif data_type == 'discrete':
+        raise Exception("Data is digital Discrete type, Hence theft analysis is not possible!!")
+    elif data_type == 'vague_pattern':
+        raise Exception(" Data type is highly vague with no pattern. Theft analysis may not yield correct results. "
+                        "This might happens due to error in fuel sensor output. Contact LovoNav for the same.")
+
     theft_pts = []
     refpts = []
     rctr = 0
@@ -76,23 +121,41 @@ def jump_point(dff, level, fuelMax, fuelMin, neb_dist):
             #print("**")
         # dd2.append(d2)
         # if (d1 >= 0.05) & (d2 >= 0.05)&(d3 >= 0.05)&(d4 >= 0.05)&(d5 >= 0.05)&(d5 >= 0.05):
+        if logic == 1:
+            ###########################################################################
+            #### Finding probable refueling Points
 
-        ###########################################################################
-        #### Finding probable refueling Points
+            if ((sum(d_forward > logic * 3 * level) in list(range(n-1, n+1)))):  # & (sum(d_forward<0.1) == 19)):
+                if (sum(d_backward > logic * 3 * level) in list(range(n-1, n+1))):
+                    refpts.append(dff.index[i])
+                    rctr += 1
 
-        if ((sum(d_forward > 1 * 3 * level) in list(range(n-1, n+1)))):  # & (sum(d_forward<0.1) == 19)):
-            if (sum(d_backward > 1 * 3 * level) in list(range(n-1, n+1))):
-                refpts.append(dff.index[i])
-                rctr += 1
+            ############################################################################
+            #### Finding probable theft points
 
-        ############################################################################
-        #### Finding probable theft points
+            if ((sum(d_forward < -1 * logic * level) in list(range(n-1, n+1)))):  # & (sum(d_forward<0.1) == 19)):
+                if (sum(d_backward < -1*logic * level) in list(range(n-1, n+1))):
+                    theft_pts.append(dff.index[i])
+                    ctr += 1
+                    # print(theft_pts, ctr)
 
-        if ((sum(d_forward < -1 * level) in list(range(n-1, n+1)))):  # & (sum(d_forward<0.1) == 19)):
-            if (sum(d_backward < -1 * level) in list(range(n-1, n+1))):
-                theft_pts.append(dff.index[i])
-                ctr += 1
-                # print(theft_pts, ctr)
+        if logic == -1:
+            ###########################################################################
+            #### Finding probable refueling Points
+
+            if ((sum(d_forward < logic * 3 * level) in list(range(n - 1, n + 1)))):  # & (sum(d_forward<0.1) == 19)):
+                if (sum(d_backward < logic * 3 * level) in list(range(n - 1, n + 1))):
+                    refpts.append(dff.index[i])
+                    rctr += 1
+
+            ############################################################################
+            #### Finding probable theft points
+
+            if ((sum(d_forward > -1 * logic * level) in list(range(n - 1, n + 1)))):  # & (sum(d_forward<0.1) == 19)):
+                if (sum(d_backward > -1 * logic * level) in list(range(n - 1, n + 1))):
+                    theft_pts.append(dff.index[i])
+                    ctr += 1
+                    # print(theft_pts, ctr)
 
         if (ctr >= 2):
             if ((theft_pts[ctr - 1] - theft_pts[ctr - 2]) in list(range(1, 6))):
@@ -262,7 +325,7 @@ def generate_TheftTable(df_cleaned, theft_pts, max_DecayRate, fuelMax, fuelMin):
     # plt.plot(result_df.theft_time, result_df.FuelPerKM)
     # plt.semilogy()
     # plt.show()
-    result_df = result_df[result_df['fuelVoltagePerKM'] >max_DecayRate]
+    result_df = result_df[result_df['fuelVoltagePerKM'] >2* max_DecayRate]
     result_df = result_df.reset_index(drop=True)
     print (len(result_df))
     return result_df

@@ -130,6 +130,7 @@ def plot_Results(df, smooth_df, result_df, theftpts=[], refPts=[], xlim=[], ylim
     # plt.plot(df_clean.index, df_clean.distance, 'b-', markersize=1, linewidth=1);
 
     plt.savefig(savepth + '_R2.png')
+    plt.show()
     plt.close()
 
 #####################################################################
@@ -148,12 +149,26 @@ def Gen_FuelMaxMin(df):
     return fmax, fmin
 
 def avg_NeigbourDistance(dff):
-    dd = dff.fuelVoltage.shift(-1) - dff.fuelVoltage
+    data_type = ''
+    dd = dff.fuelVoltage - dff.fuelVoltage.shift(-1)
     dd = dd.dropna()
+    dd_zero = pd.Series(dd == 0).mean()
+    dd_pos = pd.Series(dd > 0).mean()
+    dd_minus = pd.Series(dd < 0).mean()
+    if dd_zero < 0.95:
+        if dd_pos >= 1.5 * dd_minus:
+            data_type = 'analog_pos_logic'
+        elif dd_minus >= 1.5 * dd_pos:
+            data_type = 'analog_neg_logic'
+        else:
+            data_type = 'vague_pattern'
+    elif dd_zero >= 0.97:
+        data_type = 'discrete'
+
     dd2 = dd[abs(dd - dd.mean()) < 1.5 * dd.std()]
     meddev = abs(dd2 - dd2.median()).median()
     meddev2 = abs(dd2 - dd2.median()).mean()
-    print(dd.median(), 2 * meddev, 2 * dd.std(), 0.01 * (fuelMax - fuelMin), 0.01 * (fuelMax - 0.05 * fuelMax))
+    #print(dd.median(), 2 * meddev, 2 * dd.std(), 0.01 * (fuelMax - fuelMin), 0.01 * (fuelMax - 0.05 * fuelMax))
     distrow = [dd2.median(), 2 * meddev2, 2 * meddev, 2 * dd2.std(), 0.01 * (fuelMax - fuelMin),
                        0.01 * (fuelMax - 0.05 * fuelMax)]
     #print(dd)
@@ -162,12 +177,12 @@ def avg_NeigbourDistance(dff):
     #plt.axvline(2*dd.std(), color = 'black')
     #plt.semilogy()
     neb_dist = 2 * meddev
-    return neb_dist, distrow
+    return neb_dist, distrow, data_type
 
 ######################################################################
 #### Main Code Starts
 
-folderpath = r"H:\Analytics\FuelAnalysis\test\nf"
+folderpath = r"H:\Analytics\FuelAnalysis\test3\spcase"
 savePath = r"H:\Analytics\FuelAnalysis\results"
 filepath = r""
 
@@ -199,14 +214,14 @@ for file in filesname:
         dff, dff2 = dr.perform_postFormating(df)
         print("Dataset_" + str(ctr + 1) + " Postformatting Done")
 
-        neb_dist, distrow = avg_NeigbourDistance(dff)
+        neb_dist, distrow, datatype = avg_NeigbourDistance(dff)
 
         distDF.loc[ctr] = distrow
 
 
         ######################################################################
         #### Generate Smooth Equivalent Curve
-        smooth_df = dc.generate_SmoothCurve(dff)
+        smooth_df = dc.generate_SmoothCurve(dff, fuelMax, fuelMin)
 
         #Dmax = dff.distance.max()
         #df_clean = dc.Clean_NoiseData(dff, fuelMax, fuelMin, neb_dist)
@@ -218,7 +233,7 @@ for file in filesname:
         #axi[2].plot(df_clean.index, df_clean.fuelVoltage, 'b.', markersize=1)
 
         plt.savefig(build_savePath + '_R1.png')
-        #plt.show()
+        plt.show()
         plt.close()
         # plt.plot(df_clean.index, df_clean.fuelVoltage, 'g.', markersize=1)
         #
@@ -272,10 +287,9 @@ for file in filesname:
         #print(refuel_df)
     except Exception as err:
         filename.append(build_savePath)
-
+        print(traceback.format_exc())
         ctypes.windll.user32.MessageBoxW(0, str(err), "Error Exception", 1)
         errLog.append(str(traceback.format_exc()))
-        print(traceback.format_exc())
         ctr+=1
 error_log['Filename'] = pd.Series(filename)
 error_log['error_Log'] = pd.Series(errLog)
